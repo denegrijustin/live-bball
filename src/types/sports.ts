@@ -27,6 +27,8 @@ export interface TeamMetrics {
   division?: string; // NFL / NBA division, when the league has one
   primaryColor: string;
   secondaryColor: string;
+  /** Logo image path on ESPN's CDN (dark-background variant); see logoUrl() in components/common/ui. */
+  logo?: string | null;
   record: string;
   wins: number;
   losses: number;

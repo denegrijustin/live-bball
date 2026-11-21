@@ -173,6 +173,7 @@ function build(s: LeagueSettings) {
       division: s.id === 'NFL' || s.id === 'NBA' ? t.div : undefined,
       primaryColor: t.color,
       secondaryColor: t.alt,
+      logo: t.logo ?? null,
       record: r.t ? `${r.w}-${r.l}-${r.t}` : `${r.w}-${r.l}`,
       wins: r.w,
       losses: r.l,

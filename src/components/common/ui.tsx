@@ -1,8 +1,35 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { LetterGrade, TeamMetrics } from '../../types/sports';
 import { gradeColor } from '../../engine/gradingEngine';
 
+const CDN = 'https://a.espncdn.com';
+
+/** Resized logo URL from ESPN's image service. Sizes are bucketed so the browser cache is shared across views. */
+export function logoUrl(path: string, size: number): string {
+  const px = Math.min(200, Math.max(48, Math.ceil((size * 2) / 16) * 16));
+  return `${CDN}/combiner/i?img=${path}&w=${px}&h=${px}`;
+}
+
+/** Official team logo, falling back to a coloured letter badge if there is none or it fails to load. */
 export function TeamBadge({ team, size = 40 }: { team: TeamMetrics; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  if (team.logo && !failed) {
+    return (
+      <img
+        src={logoUrl(team.logo, size)}
+        alt={team.name}
+        title={team.name}
+        width={size}
+        height={size}
+        loading="lazy"
+        decoding="async"
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
+        className="shrink-0 object-contain"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
   return (
     <div
       className="num flex shrink-0 items-center justify-center rounded-full font-bold text-white shadow-inner"

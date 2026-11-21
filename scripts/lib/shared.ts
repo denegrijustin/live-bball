@@ -19,6 +19,7 @@ export interface RawTeam {
   abbr: string;
   name: string;
   short: string;
+  logo?: string | null;
   color: string;
   alt: string;
   conf: string;

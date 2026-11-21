@@ -100,6 +100,11 @@ function parseEvent(e) {
   };
 }
 
+// Logo image path on ESPN's CDN (the dark-background variant, since the app is dark). Stored without the host.
+const logoPath = (t) => {
+  const url = t.logoDark ?? t.logo;
+  return url ? url.replace(/^https?:\/\/a\.espncdn\.com/, '') : null;
+};
 const hex = (c, fb) => (c ? `#${String(c).replace('#', '')}` : fb);
 
 // Season year used by ESPN for football (the year the season starts) relative to today; NBA seasons start in autumn.
@@ -191,6 +196,7 @@ async function collect(league, prior = false) {
       fbs = extra.fbsConfIds.includes(t.conferenceId);
     }
     teamOut[t.id] = {
+      logo: logoPath(t),
       abbr,
       name: t.displayName,
       short: t.shortDisplayName ?? t.location ?? t.displayName,

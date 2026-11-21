@@ -10,6 +10,7 @@ import {
   ZAxis,
 } from 'recharts';
 import type { LeagueConfig, TeamMetrics } from '../../types/sports';
+import { logoUrl } from '../common/ui';
 
 interface Props {
   league: LeagueConfig;
@@ -42,6 +43,13 @@ export default function EfficiencyMatrix({ league, teams, highlightIds, onSelect
       return (
         <g onClick={() => onSelect(payload)} style={{ cursor: 'pointer' }} opacity={dim ? 0.15 : 0.95}>
           <circle cx={cx} cy={cy} r={5.5} fill={fill} stroke={payload.secondaryColor} strokeWidth={1.5} />
+        </g>
+      );
+    }
+    if (payload.logo) {
+      return (
+        <g onClick={() => onSelect(payload)} style={{ cursor: 'pointer' }} opacity={dim ? 0.2 : 1}>
+          <image href={logoUrl(payload.logo, 26)} x={cx - 13} y={cy - 13} width={26} height={26} preserveAspectRatio="xMidYMid meet" />
         </g>
       );
     }
