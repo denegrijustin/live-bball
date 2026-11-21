@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ActiveTab, LeagueId, ScheduledGame, TeamMetrics, VenueType, WhatIfAdjustments } from './types/sports';
-import { findTeam, getConfig, getSlate, getTeams, topTwoTeams } from './data';
+import { findTeam, getConfig, getMeta, getSeason, getSlate, getTeams, topTwoTeams } from './data';
 import { NEUTRAL_ADJUSTMENTS } from './engine/mathModel';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
@@ -9,6 +9,7 @@ import DailySlateView from './components/slate/DailySlateView';
 import PowerRankingsView from './components/rankings/PowerRankingsView';
 import TeamReportModal from './components/rankings/TeamReportModal';
 import LeanBoardView from './components/leanboard/LeanBoardView';
+import SeasonView from './components/season/SeasonView';
 
 interface AppState {
   league: LeagueId;
@@ -22,7 +23,7 @@ interface AppState {
   runId: number;
 }
 
-const TABS: ActiveTab[] = ['SIMULATOR', 'SLATE', 'RANKINGS', 'LEAN_BOARD'];
+const TABS: ActiveTab[] = ['SIMULATOR', 'SLATE', 'RANKINGS', 'LEAN_BOARD', 'SEASON'];
 const VENUES: VenueType[] = ['TEAM_A_HOME', 'NEUTRAL', 'TEAM_B_HOME'];
 
 function defaultsFor(league: LeagueId): Pick<AppState, 'teamAId' | 'teamBId'> {
@@ -71,6 +72,8 @@ export default function App() {
   const config = getConfig(s.league);
   const teams = useMemo(() => getTeams(s.league), [s.league]);
   const games = useMemo(() => getSlate(s.league), [s.league]);
+  const season = useMemo(() => getSeason(s.league), [s.league]);
+  const meta = getMeta(s.league);
   const teamA = findTeam(s.league, s.teamAId) ?? teams[0];
   const teamB = findTeam(s.league, s.teamBId) ?? teams[1];
 
@@ -171,8 +174,11 @@ export default function App() {
         {s.tab === 'SLATE' && <DailySlateView league={config} games={games} teams={teams} onSimulate={simulateGame} />}
         {s.tab === 'RANKINGS' && <PowerRankingsView league={config} teams={teams} onSelect={setReportTeam} />}
         {s.tab === 'LEAN_BOARD' && <LeanBoardView league={config} games={games} teams={teams} onSimulate={simulateGame} />}
+        {s.tab === 'SEASON' && (
+          <SeasonView league={config} teams={teams} season={season} iterations={meta.seasonIterations} onSelect={setReportTeam} />
+        )}
       </main>
-      <Footer />
+      <Footer meta={meta} />
       {reportTeam && <TeamReportModal team={reportTeam} allTeams={teams} onClose={() => setReportTeam(null)} />}
     </div>
   );

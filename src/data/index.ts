@@ -1,22 +1,42 @@
-import type { LeagueConfig, LeagueId, ScheduledGame, TeamMetrics } from '../types/sports';
-import { LEAGUES } from './leaguesConfig';
-import { NFL_TEAMS } from './nflTeams';
-import { NCAAF_TEAMS } from './ncaafTeams';
-import { NBA_TEAMS } from './nbaTeams';
-import { NFL_SLATE, NCAAF_SLATE, NBA_SLATE } from './dailySlate';
+import type {
+  DataMeta,
+  LeagueConfig,
+  LeagueId,
+  ScheduledGame,
+  SeasonProjection,
+  TeamMetrics,
+} from '../types/sports';
+import nfl from './generated/nfl.json';
+import ncaaf from './generated/ncaaf.json';
+import nba from './generated/nba.json';
 
-const TEAMS: Record<LeagueId, TeamMetrics[]> = { NFL: NFL_TEAMS, NCAAF: NCAAF_TEAMS, NBA: NBA_TEAMS };
-const SLATES: Record<LeagueId, ScheduledGame[]> = { NFL: NFL_SLATE, NCAAF: NCAAF_SLATE, NBA: NBA_SLATE };
+/** Output of scripts/buildRatings.ts (real results -> OLS + IRLS ratings, calibration, slate, season odds). */
+interface Generated {
+  meta: DataMeta;
+  config: LeagueConfig;
+  teams: TeamMetrics[];
+  slate: ScheduledGame[];
+  season: SeasonProjection[];
+}
 
-export const getTeams = (l: LeagueId): TeamMetrics[] => TEAMS[l];
-export const getSlate = (l: LeagueId): ScheduledGame[] => SLATES[l];
-export const getConfig = (l: LeagueId): LeagueConfig => LEAGUES[l];
+const DATA: Record<LeagueId, Generated> = {
+  NFL: nfl as unknown as Generated,
+  NCAAF: ncaaf as unknown as Generated,
+  NBA: nba as unknown as Generated,
+};
+
+export const getTeams = (l: LeagueId): TeamMetrics[] => DATA[l].teams;
+export const getSlate = (l: LeagueId): ScheduledGame[] => DATA[l].slate;
+export const getSeason = (l: LeagueId): SeasonProjection[] => DATA[l].season;
+export const getMeta = (l: LeagueId): DataMeta => DATA[l].meta;
+/** League constants fitted to the season's results (home advantage, margin/total SD, average scoring). */
+export const getConfig = (l: LeagueId): LeagueConfig => DATA[l].config;
 
 export function findTeam(l: LeagueId, id: string): TeamMetrics | undefined {
-  return TEAMS[l].find((t) => t.id === id);
+  return DATA[l].teams.find((t) => t.id === id);
 }
 
 export function topTwoTeams(l: LeagueId): [TeamMetrics, TeamMetrics] {
-  const sorted = [...TEAMS[l]].sort((a, b) => b.powerRating - a.powerRating);
+  const sorted = [...DATA[l].teams].sort((a, b) => b.powerRating - a.powerRating);
   return [sorted[1], sorted[0]];
 }

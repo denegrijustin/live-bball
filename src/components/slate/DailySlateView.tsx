@@ -41,7 +41,7 @@ export default function DailySlateView({ league, games, teams, onSimulate }: Pro
     const s = query.trim().toLowerCase();
     const list = rows.filter((r) => {
       if (day !== 'ALL' && r.game.startTime.split(' ')[0] !== day) return false;
-      if (edgeOnly && r.spreadEdge < 2 && r.totalEdge < 2) return false;
+      if (edgeOnly && !((r.hasSpread && r.spreadEdge >= 2) || (r.hasTotal && r.totalEdge >= 2))) return false;
       if (!s) return true;
       return (
         r.away.name.toLowerCase().includes(s) ||
@@ -50,7 +50,8 @@ export default function DailySlateView({ league, games, teams, onSimulate }: Pro
         r.home.abbreviation.toLowerCase() === s
       );
     });
-    if (sort === 'EDGE') list.sort((a, b) => Math.max(b.spreadEdge, b.totalEdge) - Math.max(a.spreadEdge, a.totalEdge));
+    const best = (r: (typeof list)[number]) => Math.max(r.hasSpread ? r.spreadEdge : 0, r.hasTotal ? r.totalEdge : 0);
+    if (sort === 'EDGE') list.sort((a, b) => best(b) - best(a));
     return list;
   }, [rows, day, query, sort, edgeOnly]);
 

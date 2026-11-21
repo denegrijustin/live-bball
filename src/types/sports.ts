@@ -1,7 +1,7 @@
 export type LeagueId = 'NFL' | 'NCAAF' | 'NBA';
 export type VenueType = 'TEAM_A_HOME' | 'NEUTRAL' | 'TEAM_B_HOME';
 export type LetterGrade = 'A+' | 'A' | 'A-' | 'B+' | 'B' | 'B-' | 'C+' | 'C' | 'C-' | 'D' | 'F';
-export type ActiveTab = 'SIMULATOR' | 'SLATE' | 'RANKINGS' | 'LEAN_BOARD';
+export type ActiveTab = 'SIMULATOR' | 'SLATE' | 'RANKINGS' | 'LEAN_BOARD' | 'SEASON';
 
 export interface LeagueConfig {
   id: LeagueId;
@@ -23,7 +23,8 @@ export interface TeamMetrics {
   name: string;
   shortName: string;
   abbreviation: string;
-  conference: string;
+  conference: string; // e.g. "AFC West", "SEC", "Western"
+  division?: string; // NFL / NBA division, when the league has one
   primaryColor: string;
   secondaryColor: string;
   record: string;
@@ -108,8 +109,33 @@ export interface ScheduledGame {
   awayTeamId: string; // Team A
   homeTeamId: string; // Team B
   neutralSite: boolean;
-  vegasSpreadHome: number;
-  vegasTotal: number;
+  /** Sportsbook lines are null until a book posts them (ESPN/DraftKings). */
+  vegasSpreadHome: number | null;
+  vegasTotal: number | null;
+}
+
+export interface SeasonProjection {
+  teamId: string;
+  wins: number;
+  losses: number;
+  gamesRemaining: number;
+  avgWins: number;
+  playoffPct: number;
+  divisionPct: number;
+  topSeedPct: number;
+  topSixPct: number;
+  bowlPct: number;
+  cfpPct: number;
+}
+
+export interface DataMeta {
+  asOf: string;
+  source: string;
+  gamesUsed: number;
+  teamsRated: number;
+  halfLifeDays: number;
+  irlsIterations: number;
+  seasonIterations: number;
 }
 
 export type GradeKey = 'OFFENSE' | 'DEFENSE' | 'PACE' | 'SOS' | 'CONSISTENCY' | 'POWER';
@@ -131,6 +157,8 @@ export interface LeanRow {
   model: MatchupModel;
   modelSpreadHome: number;
   vegasSpreadHome: number;
+  hasSpread: boolean; // false when no sportsbook line is posted; edges then compare the model to itself
+  hasTotal: boolean;
   spreadEdge: number; // points of value on the recommended side (always >= 0)
   spreadPick: 'HOME' | 'AWAY';
   spreadPickLine: number; // line the pick is taking, from that side's perspective

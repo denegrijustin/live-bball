@@ -37,6 +37,14 @@ export default function EfficiencyMatrix({ league, teams, highlightIds, onSelect
     if (cx === undefined || cy === undefined || !payload) return <g />;
     const dim = highlightIds.size > 0 && !highlightIds.has(payload.id);
     const fill = payload.primaryColor === '#000000' ? '#475569' : payload.primaryColor;
+    if (teams.length > 60) {
+      // Large leagues (FBS): small dots; hover for the name.
+      return (
+        <g onClick={() => onSelect(payload)} style={{ cursor: 'pointer' }} opacity={dim ? 0.15 : 0.95}>
+          <circle cx={cx} cy={cy} r={5.5} fill={fill} stroke={payload.secondaryColor} strokeWidth={1.5} />
+        </g>
+      );
+    }
     return (
       <g onClick={() => onSelect(payload)} style={{ cursor: 'pointer' }} opacity={dim ? 0.2 : 1}>
         <circle cx={cx} cy={cy} r={9} fill={fill} stroke={payload.secondaryColor} strokeWidth={2} />

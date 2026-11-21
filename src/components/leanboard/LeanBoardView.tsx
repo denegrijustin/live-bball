@@ -30,15 +30,20 @@ export default function LeanBoardView({ league, games, teams, onSimulate }: Prop
       games.flatMap((g) => {
         const away = teams.find((t) => t.id === g.awayTeamId);
         const home = teams.find((t) => t.id === g.homeTeamId);
-        return away && home ? [evaluateGame(g, away, home, league)] : [];
+        if (!away || !home || (g.vegasSpreadHome === null && g.vegasTotal === null)) return [];
+        return [evaluateGame(g, away, home, league)];
       }),
     [games, teams, league],
   );
 
   const sorted = useMemo(() => {
-    const list = rows.filter((r) => Math.max(r.spreadEdge, r.totalEdge) >= minEdge);
+    const list = rows.filter((r) => Math.max(r.hasSpread ? r.spreadEdge : 0, r.hasTotal ? r.totalEdge : 0) >= minEdge);
     const key = (r: LeanRow) =>
-      sort === 'SPREAD_EDGE' ? r.spreadEdge : sort === 'TOTAL_EDGE' ? r.totalEdge : Math.max(r.spreadEv, r.totalEv);
+      sort === 'SPREAD_EDGE'
+        ? (r.hasSpread ? r.spreadEdge : -1)
+        : sort === 'TOTAL_EDGE'
+          ? (r.hasTotal ? r.totalEdge : -1)
+          : Math.max(r.hasSpread ? r.spreadEv : -1e9, r.hasTotal ? r.totalEv : -1e9);
     return list.sort((a, b) => key(b) - key(a));
   }, [rows, sort, minEdge]);
 
@@ -116,35 +121,55 @@ export default function LeanBoardView({ league, games, teams, onSimulate }: Prop
                     {r.home.abbreviation} {fmtLine(r.modelSpreadHome)}
                   </td>
                   <td className="num px-2 py-2 text-right">
-                    {r.home.abbreviation} {fmtLine(r.vegasSpreadHome)}
+                    {r.hasSpread ? `${r.home.abbreviation} ${fmtLine(r.vegasSpreadHome)}` : '—'}
                   </td>
                   <td className="px-2 py-2 text-right">
-                    <span className={`num rounded px-2 py-0.5 font-bold ${edgeTone(r.spreadEdge)}`}>
-                      {r.spreadEdge.toFixed(1)}
-                    </span>
+                    {r.hasSpread ? (
+                      <span className={`num rounded px-2 py-0.5 font-bold ${edgeTone(r.spreadEdge)}`}>
+                        {r.spreadEdge.toFixed(1)}
+                      </span>
+                    ) : (
+                      <span className="text-slate-600">—</span>
+                    )}
                   </td>
                   <td className="px-2 py-2">
-                    <div className={`font-semibold ${hot ? 'text-emerald-300' : ''}`}>
-                      {pick.abbreviation} {fmtLine(r.spreadPickLine)}
-                    </div>
-                    <div className="num text-[11px] text-slate-500">
-                      {fmtPct(r.spreadCoverProb)} · EV {fmtMoney(r.spreadEv)}
-                    </div>
+                    {r.hasSpread ? (
+                      <>
+                        <div className={`font-semibold ${hot ? 'text-emerald-300' : ''}`}>
+                          {pick.abbreviation} {fmtLine(r.spreadPickLine)}
+                        </div>
+                        <div className="num text-[11px] text-slate-500">
+                          {fmtPct(r.spreadCoverProb)} · EV {fmtMoney(r.spreadEv)}
+                        </div>
+                      </>
+                    ) : (
+                      <span className="text-slate-600">No spread</span>
+                    )}
                   </td>
                   <td className="num px-2 py-2 text-right">{r.modelTotal.toFixed(1)}</td>
-                  <td className="num px-2 py-2 text-right">{r.vegasTotal}</td>
+                  <td className="num px-2 py-2 text-right">{r.hasTotal ? r.vegasTotal : '—'}</td>
                   <td className="px-2 py-2 text-right">
-                    <span className={`num rounded px-2 py-0.5 font-bold ${edgeTone(r.totalEdge)}`}>
-                      {r.totalEdge.toFixed(1)}
-                    </span>
+                    {r.hasTotal ? (
+                      <span className={`num rounded px-2 py-0.5 font-bold ${edgeTone(r.totalEdge)}`}>
+                        {r.totalEdge.toFixed(1)}
+                      </span>
+                    ) : (
+                      <span className="text-slate-600">—</span>
+                    )}
                   </td>
                   <td className="px-2 py-2">
-                    <div className="font-semibold">
-                      {r.totalPick === 'OVER' ? 'Over' : 'Under'} {r.vegasTotal}
-                    </div>
-                    <div className="num text-[11px] text-slate-500">
-                      {fmtPct(r.totalProb)} · EV {fmtMoney(r.totalEv)}
-                    </div>
+                    {r.hasTotal ? (
+                      <>
+                        <div className="font-semibold">
+                          {r.totalPick === 'OVER' ? 'Over' : 'Under'} {r.vegasTotal}
+                        </div>
+                        <div className="num text-[11px] text-slate-500">
+                          {fmtPct(r.totalProb)} · EV {fmtMoney(r.totalEv)}
+                        </div>
+                      </>
+                    ) : (
+                      <span className="text-slate-600">No total</span>
+                    )}
                   </td>
                   <td className="px-2 py-2 text-right">
                     <button
@@ -159,7 +184,13 @@ export default function LeanBoardView({ league, games, teams, onSimulate }: Prop
             })}
           </tbody>
         </table>
-        {sorted.length === 0 && <p className="py-8 text-center text-slate-500">No games clear the minimum edge.</p>}
+        {sorted.length === 0 && (
+          <p className="py-8 text-center text-slate-500">
+            {rows.length === 0
+              ? 'No sportsbook lines are posted yet for this slate. Lines usually appear closer to game day.'
+              : 'No games clear the minimum edge.'}
+          </p>
+        )}
       </div>
       <p className="text-[11px] text-slate-600">
         Edge = how many points the model line differs from the market on the recommended side. EV is expected profit per

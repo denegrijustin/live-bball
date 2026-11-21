@@ -1,5 +1,9 @@
 import type { LeagueConfig, LeagueId } from '../types/sports';
 
+/**
+ * Baseline constants. Home advantage, margin/total SD and average scoring are used as priors and then re-fitted to
+ * the season's real results by scripts/buildRatings.ts (see getConfig in data/index.ts). Pace is a tempo index.
+ */
 export const LEAGUES: Record<LeagueId, LeagueConfig> = {
   NFL: {
     id: 'NFL',
@@ -12,7 +16,7 @@ export const LEAGUES: Record<LeagueId, LeagueConfig> = {
     totalStdDev: 13.8,
     minRealisticScore: 0,
     unitLabel: 'Points/Game',
-    paceLabel: 'Plays/Game',
+    paceLabel: 'Est. Plays/Game',
   },
   NCAAF: {
     id: 'NCAAF',
@@ -25,7 +29,7 @@ export const LEAGUES: Record<LeagueId, LeagueConfig> = {
     totalStdDev: 15.2,
     minRealisticScore: 0,
     unitLabel: 'Points/Game',
-    paceLabel: 'Plays/Game',
+    paceLabel: 'Est. Plays/Game',
   },
   NBA: {
     id: 'NBA',
@@ -38,7 +42,7 @@ export const LEAGUES: Record<LeagueId, LeagueConfig> = {
     totalStdDev: 14.1,
     minRealisticScore: 72,
     unitLabel: 'Points/100 Poss',
-    paceLabel: 'Possessions/48m',
+    paceLabel: 'Est. Poss./48m',
   },
 };
 

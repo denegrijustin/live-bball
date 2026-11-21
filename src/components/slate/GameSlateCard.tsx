@@ -65,8 +65,8 @@ export default function GameSlateCard({ row, allTeams, onSimulate }: Props) {
         </div>
       </div>
       <div className="px-4 py-2">
-        {teamRow(away, model.teamAWinProb, model.teamAProjectedScore, fmtLine(-game.vegasSpreadHome))}
-        {teamRow(home, model.teamBWinProb, model.teamBProjectedScore, fmtLine(game.vegasSpreadHome))}
+        {teamRow(away, model.teamAWinProb, model.teamAProjectedScore, row.hasSpread ? fmtLine(-row.vegasSpreadHome) : '—')}
+        {teamRow(home, model.teamBWinProb, model.teamBProjectedScore, row.hasSpread ? fmtLine(row.vegasSpreadHome) : '—')}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 bg-slate-950/40 px-4 py-2 text-xs">
         <div className="num flex flex-wrap gap-x-4 gap-y-1 text-slate-400">
@@ -74,11 +74,15 @@ export default function GameSlateCard({ row, allTeams, onSimulate }: Props) {
             Model: <b className="text-slate-200">{modelFav.abbreviation} {fmtLine(-Math.abs(model.projectedSpreadTeamB))}</b>
           </span>
           <span>
-            Total: <b className="text-slate-200">{model.projectedTotal.toFixed(1)}</b> vs {game.vegasTotal}
+            Total: <b className="text-slate-200">{model.projectedTotal.toFixed(1)}</b> vs {row.hasTotal ? row.vegasTotal : 'no line'}
           </span>
-          <span className={row.spreadEdge >= 2 ? 'text-emerald-400' : ''}>
-            Edge: {row.spreadPick === 'HOME' ? home.abbreviation : away.abbreviation} {row.spreadEdge.toFixed(1)}
-          </span>
+          {row.hasSpread ? (
+            <span className={row.spreadEdge >= 2 ? 'text-emerald-400' : ''}>
+              Edge: {row.spreadPick === 'HOME' ? home.abbreviation : away.abbreviation} {row.spreadEdge.toFixed(1)}
+            </span>
+          ) : (
+            <span className="text-slate-600">No line posted yet</span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button

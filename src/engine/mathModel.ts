@@ -48,15 +48,6 @@ export const NEUTRAL_ADJUSTMENTS: WhatIfAdjustments = {
   teamBPaceDelta: 0,
 };
 
-/**
- * Converts a team's matchup efficiency into points scored.
- * NBA ratings are per 100 possessions, so scoring scales with possessions / 100.
- * Football ratings are points per game at league-average plays, so scoring scales with plays / avgPlays.
- */
-export function scoreScale(league: LeagueConfig, pace: number): number {
-  return league.id === 'NBA' ? pace / 100 : pace / league.avgPace;
-}
-
 export function adjustTeam(
   team: TeamMetrics,
   off: number,
@@ -77,8 +68,11 @@ export function projectMatchup(
   const adjA = adjustTeam(teamA, adj.teamAOffDelta, adj.teamADefDelta, adj.teamAPaceDelta);
   const adjB = adjustTeam(teamB, adj.teamBOffDelta, adj.teamBDefDelta, adj.teamBPaceDelta);
 
+  // Ratings already embed each team's natural tempo, so only a What-If pace change (relative to the
+  // matchup's baseline tempo) scales scoring: 1.0 when no pace adjustment is applied.
   const expectedPace = (adjA.pace + adjB.pace) / 2;
-  const scale = scoreScale(league, expectedPace);
+  const basePace = (teamA.pace + teamB.pace) / 2;
+  const scale = basePace > 0 ? expectedPace / basePace : 1;
 
   const hfa = league.homeAdvantagePts / 2;
   const venueA = venue === 'TEAM_A_HOME' ? hfa : venue === 'TEAM_B_HOME' ? -hfa : 0;

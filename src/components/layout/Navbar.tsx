@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Activity, BarChart3, CalendarDays, Search, Target } from 'lucide-react';
+import { Activity, BarChart3, CalendarDays, Search, Target, Trophy } from 'lucide-react';
 import type { ActiveTab, LeagueId, TeamMetrics } from '../../types/sports';
 import { LEAGUE_IDS } from '../../data/leaguesConfig';
 import { TeamBadge } from '../common/ui';
@@ -9,6 +9,7 @@ const TABS: { id: ActiveTab; label: string; icon: typeof Activity }[] = [
   { id: 'SLATE', label: 'Daily Slate', icon: CalendarDays },
   { id: 'RANKINGS', label: 'Power Rankings', icon: BarChart3 },
   { id: 'LEAN_BOARD', label: 'Lean Board', icon: Target },
+  { id: 'SEASON', label: 'Season Odds', icon: Trophy },
 ];
 
 interface Props {

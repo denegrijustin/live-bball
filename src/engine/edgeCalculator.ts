@@ -1,5 +1,5 @@
 import type { LeagueConfig, LeanRow, ScheduledGame, TeamMetrics } from '../types/sports';
-import { americanToProb, NEUTRAL_ADJUSTMENTS, projectMatchup } from './mathModel';
+import { americanToProb, NEUTRAL_ADJUSTMENTS, projectMatchup, roundHalf } from './mathModel';
 import { hashString, runMonteCarlo } from './monteCarlo';
 
 export const STANDARD_JUICE = -110;
@@ -22,21 +22,26 @@ export function evaluateGame(
 ): LeanRow {
   const venue = game.neutralSite ? 'NEUTRAL' : 'TEAM_B_HOME';
   const model = projectMatchup(away, home, venue, NEUTRAL_ADJUSTMENTS, league);
+  // Without a posted line, evaluate against the model's own rounded line so the card still renders.
+  const hasSpread = game.vegasSpreadHome !== null;
+  const hasTotal = game.vegasTotal !== null;
+  const vegasSpreadHome = game.vegasSpreadHome ?? roundHalf(model.projectedSpreadTeamB);
+  const vegasTotal = game.vegasTotal ?? roundHalf(model.projectedTotal);
   const mc = runMonteCarlo(model, league, {
-    vegasSpreadTeamB: game.vegasSpreadHome,
-    vegasTotal: game.vegasTotal,
+    vegasSpreadTeamB: vegasSpreadHome,
+    vegasTotal,
     seed: hashString(game.id),
   });
 
   const modelSpreadHome = model.projectedSpreadTeamB;
   // Positive means the model likes the home side more than the market does.
-  const rawSpreadEdge = game.vegasSpreadHome - modelSpreadHome;
+  const rawSpreadEdge = vegasSpreadHome - modelSpreadHome;
   const spreadPick = rawSpreadEdge >= 0 ? 'HOME' : 'AWAY';
   const spreadCoverProb = spreadPick === 'HOME' ? mc.teamBCoverProb : mc.teamACoverProb;
   const spreadLoseProb = spreadPick === 'HOME' ? mc.teamACoverProb : mc.teamBCoverProb;
-  const spreadPickLine = spreadPick === 'HOME' ? game.vegasSpreadHome : -game.vegasSpreadHome;
+  const spreadPickLine = spreadPick === 'HOME' ? vegasSpreadHome : -vegasSpreadHome;
 
-  const rawTotalEdge = model.projectedTotal - game.vegasTotal;
+  const rawTotalEdge = model.projectedTotal - vegasTotal;
   const totalPick = rawTotalEdge >= 0 ? 'OVER' : 'UNDER';
   const totalProb = totalPick === 'OVER' ? mc.overProb : mc.underProb;
   const totalLose = totalPick === 'OVER' ? mc.underProb : mc.overProb;
@@ -47,14 +52,16 @@ export function evaluateGame(
     home,
     model,
     modelSpreadHome,
-    vegasSpreadHome: game.vegasSpreadHome,
+    vegasSpreadHome,
+    hasSpread,
+    hasTotal,
     spreadEdge: Math.abs(rawSpreadEdge),
     spreadPick,
     spreadPickLine,
     spreadCoverProb,
     spreadEv: expectedValue(spreadCoverProb / 100, spreadLoseProb / 100),
     modelTotal: model.projectedTotal,
-    vegasTotal: game.vegasTotal,
+    vegasTotal,
     totalEdge: Math.abs(rawTotalEdge),
     totalPick,
     totalProb,
