@@ -1,0 +1,11 @@
+{
+  // Deploys the built Vite app (dist/) as static assets to the existing "live-bball" Worker,
+  // which already serves ball.elskatemm.com.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "live-bball",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
