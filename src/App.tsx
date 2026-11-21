@@ -9,6 +9,7 @@ import {
   getMeta,
   getSeason,
   getSlate,
+  getTracking,
   getTeams,
   isLeverageLoaded,
   isLoaded,
@@ -25,6 +26,7 @@ const TeamReportModal = lazy(() => import('./components/rankings/TeamReportModal
 const LeanBoardView = lazy(() => import('./components/leanboard/LeanBoardView'));
 const SeasonView = lazy(() => import('./components/season/SeasonView'));
 const LeverageView = lazy(() => import('./components/leverage/LeverageView'));
+const TrackRecordView = lazy(() => import('./components/tracking/TrackRecordView'));
 
 interface AppState {
   league: LeagueId;
@@ -39,7 +41,7 @@ interface AppState {
   leverageTeamId: string | null;
 }
 
-const TABS: ActiveTab[] = ['SIMULATOR', 'SLATE', 'RANKINGS', 'LEAN_BOARD', 'SEASON', 'LEVERAGE'];
+const TABS: ActiveTab[] = ['SIMULATOR', 'SLATE', 'RANKINGS', 'LEAN_BOARD', 'SEASON', 'LEVERAGE', 'TRACKING'];
 const VENUES: VenueType[] = ['TEAM_A_HOME', 'NEUTRAL', 'TEAM_B_HOME'];
 
 function defaultsFor(league: LeagueId): Pick<AppState, 'teamAId' | 'teamBId'> {
@@ -259,6 +261,7 @@ export default function App() {
             onLeverage={(t) => patch({ tab: 'LEVERAGE', leverageTeamId: t.id })}
           />
         )}
+        {s.tab === 'TRACKING' && <TrackRecordView league={config} tracking={getTracking(s.league)} />}
         {s.tab === 'LEVERAGE' && isCbb(s.league) && !leverageReady && (
           <p className="animate-pulse py-16 text-center text-slate-400">Loading leverage…</p>
         )}

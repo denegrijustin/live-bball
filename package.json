@@ -13,7 +13,8 @@
     "data:prior": "node scripts/fetchData.mjs --prior",
     "backtest": "tsx scripts/backtest.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "backtest:record": "tsx scripts/backtest.ts --record"
   },
   "dependencies": {
     "lucide-react": "0.468.0",

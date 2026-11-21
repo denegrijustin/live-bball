@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Activity, BarChart3, CalendarDays, Scale, Search, Target, Trophy } from 'lucide-react';
+import { Activity, BarChart3, CalendarDays, Gauge, Scale, Search, Target, Trophy } from 'lucide-react';
 import type { ActiveTab, LeagueId, TeamMetrics } from '../../types/sports';
 import { LEAGUE_IDS, isCbb } from '../../data/leaguesConfig';
 import { TeamBadge } from '../common/ui';
@@ -11,6 +11,7 @@ const TABS: { id: ActiveTab; label: string; icon: typeof Activity }[] = [
   { id: 'LEAN_BOARD', label: 'Lean Board', icon: Target },
   { id: 'SEASON', label: 'Season Odds', icon: Trophy },
   { id: 'LEVERAGE', label: 'Tourney Leverage', icon: Scale },
+  { id: 'TRACKING', label: 'Track Record', icon: Gauge },
 ];
 
 interface Props {
@@ -41,7 +42,7 @@ export default function Navbar({ league, tab, teams, onLeague, onTab, onPickTeam
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-slate-950">
             <Activity size={18} strokeWidth={3} />
@@ -70,7 +71,7 @@ export default function Navbar({ league, tab, teams, onLeague, onTab, onPickTeam
             <button
               key={id}
               onClick={() => onTab(id)}
-              className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+              className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-semibold transition ${
                 tab === id ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-100'
               }`}
             >
@@ -80,7 +81,7 @@ export default function Navbar({ league, tab, teams, onLeague, onTab, onPickTeam
           ))}
         </nav>
 
-        <div className="relative ml-auto w-56">
+        <div className="relative ml-auto w-44">
           <Search size={14} className="absolute left-2.5 top-2.5 text-slate-500" />
           <input
             value={q}

@@ -6,6 +6,7 @@ import type {
   ScheduledGame,
   SeasonProjection,
   TeamMetrics,
+  TrackingSummary,
 } from '../types/sports';
 import { LEAGUES } from './leaguesConfig';
 
@@ -16,6 +17,7 @@ interface Generated {
   teams: TeamMetrics[];
   slate: ScheduledGame[];
   season: SeasonProjection[];
+  tracking: TrackingSummary;
 }
 
 // Each league's data is its own chunk (the basketball files are ~2 MB), fetched only when that league is opened.
@@ -90,6 +92,7 @@ export const getTeams = (l: LeagueId): TeamMetrics[] => cache.get(l)?.teams ?? E
 export const getSlate = (l: LeagueId): ScheduledGame[] => cache.get(l)?.slate ?? EMPTY;
 export const getSeason = (l: LeagueId): SeasonProjection[] => cache.get(l)?.season ?? EMPTY;
 export const getLeverage = (l: LeagueId): LeverageRow[] => leverageCache.get(l) ?? EMPTY;
+export const getTracking = (l: LeagueId): TrackingSummary | null => cache.get(l)?.tracking ?? null;
 export const getMeta = (l: LeagueId): DataMeta | null => cache.get(l)?.meta ?? null;
 /** League constants fitted to the season's results (home advantage, margin/total SD, average scoring). */
 export const getConfig = (l: LeagueId): LeagueConfig => cache.get(l)?.config ?? LEAGUES[l];

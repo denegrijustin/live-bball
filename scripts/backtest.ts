@@ -2,26 +2,32 @@
  * Walk-forward backtest. For several points in the current season, rate teams using ONLY games up to that point
  * (plus last season as a preseason prior), then predict the next block of games. Compares prior carry-over weights.
  *
- * Usage: npx tsx scripts/backtest.ts            (all leagues, prints a table)
- *        npx tsx scripts/backtest.ts nfl        (one league)
+ * Usage: npx tsx scripts/backtest.ts                    (all leagues, prints a table)
+ *        npx tsx scripts/backtest.ts nfl                (one league)
+ *        npx tsx scripts/backtest.ts --record           (also appends the result to data/tracking/backtest-history.json)
  */
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { normalCDF } from '../src/engine/mathModel';
 import { solveRatings } from '../src/engine/ratingSolver';
-import { loadRaw, priorFor, solvePriorSeason, SETTINGS, solverOpts, toRows, universeOf } from './lib/shared';
+import { ROOT, loadRaw, priorFor, solvePriorSeason, SETTINGS, solverOpts, toRows, universeOf } from './lib/shared';
+import type { BacktestEntry } from './lib/tracking';
 
 const CARRIES = [0, 0.2, 0.35, 0.5, 0.65, 0.8];
 const CUTOFFS = [0.12, 0.25, 0.4, 0.55, 0.7]; // fraction of this season's games already played
 const WINDOW = 0.15; // predict the next 15% of games
 
-const only = process.argv[2]?.toLowerCase();
+const args = process.argv.slice(2);
+const record = args.includes('--record');
+const only = args.find((a) => !a.startsWith('--'))?.toLowerCase();
 
-function evalLeague(file: string) {
+function evalLeague(file: string): BacktestEntry | null {
   const s = SETTINGS.find((x) => x.file === file)!;
   const raw = loadRaw(s.file)!;
   const priorRaw = loadRaw(s.file, true);
   if (!priorRaw) {
     console.log(`${s.id}: no prior-season file (run: node scripts/fetchData.mjs --prior ${file})`);
-    return;
+    return null;
   }
   const ids = universeOf(s, raw);
   const index = new Map(ids.map((id, i) => [id, i]));
@@ -61,6 +67,34 @@ function evalLeague(file: string) {
       `  ${CARRIES[k].toFixed(2)}   ${((100 * a.acc) / a.n).toFixed(1)}%  ${(a.brier / a.n).toFixed(4)}  ${(a.ll / a.n).toFixed(4)}  ${(a.mae / a.n).toFixed(2)}${k === best ? '  <- best logloss' : ''}${CARRIES[k] === s.carry ? '  (configured)' : ''}`,
     );
   });
+  // Entry for the carry-over actually configured (nearest grid point), for the history file.
+  const cfg = CARRIES.reduce((bi, c, i) => (Math.abs(c - s.carry) < Math.abs(CARRIES[bi] - s.carry) ? i : bi), 0);
+  const a = agg[cfg];
+  const r4 = (x: number) => Math.round(x * 10000) / 10000;
+  return {
+    ranAt: new Date().toISOString(),
+    league: s.id,
+    games: rows.length,
+    predictions: a.n,
+    carry: CARRIES[cfg],
+    accuracy: r4(a.acc / a.n),
+    brier: r4(a.brier / a.n),
+    logloss: r4(a.ll / a.n),
+    mae: Math.round((a.mae / a.n) * 100) / 100,
+    bestCarry: CARRIES[best],
+  };
 }
 
-for (const s of SETTINGS) if (!only || s.file === only) evalLeague(s.file);
+const entries: BacktestEntry[] = [];
+for (const s of SETTINGS) if (!only || s.file === only) {
+  const e = evalLeague(s.file);
+  if (e) entries.push(e);
+}
+if (record && entries.length) {
+  const dir = join(ROOT, 'data/tracking');
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, 'backtest-history.json');
+  const history: BacktestEntry[] = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : [];
+  writeFileSync(path, JSON.stringify([...history, ...entries], null, 1));
+  console.log(`\nRecorded ${entries.length} entries to data/tracking/backtest-history.json`);
+}

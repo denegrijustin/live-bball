@@ -1,7 +1,7 @@
 export type LeagueId = 'NFL' | 'NCAAF' | 'NBA' | 'NCAAM' | 'NCAAW';
 export type VenueType = 'TEAM_A_HOME' | 'NEUTRAL' | 'TEAM_B_HOME';
 export type LetterGrade = 'A+' | 'A' | 'A-' | 'B+' | 'B' | 'B-' | 'C+' | 'C' | 'C-' | 'D' | 'F';
-export type ActiveTab = 'SIMULATOR' | 'SLATE' | 'RANKINGS' | 'LEAN_BOARD' | 'SEASON' | 'LEVERAGE';
+export type ActiveTab = 'SIMULATOR' | 'SLATE' | 'RANKINGS' | 'LEAN_BOARD' | 'SEASON' | 'LEVERAGE' | 'TRACKING';
 
 export interface LeagueConfig {
   id: LeagueId;
@@ -167,6 +167,29 @@ export interface DataMeta {
   priorTeams: number;
   /** College basketball: NCAA tournament selection model parameters. */
   tourney?: { iterations: number; autoBidConferences: number; atLargeSlots: number; fieldSize: number };
+}
+
+/** Out-of-sample record of the model's real predictions (graded after each game finishes) plus the latest backtest. */
+export interface TrackingSummary {
+  since: string | null; // when forward tracking started
+  pendingGames: number;
+  n: number; // graded predictions
+  accuracy: number | null;
+  brier: number | null; // lower is better; 0.25 = coin flip
+  logloss: number | null;
+  mae: number | null; // mean absolute margin error (points)
+  market: { n: number; modelMae: number; marketMae: number; atsN: number; atsWins: number } | null;
+  series: { d: string; n: number; accuracy: number; brier: number }[]; // cumulative, by result date
+  calibration: { lo: number; hi: number; n: number; predicted: number | null; actual: number | null }[];
+  backtest: {
+    ranAt: string;
+    predictions: number;
+    carry: number;
+    accuracy: number;
+    brier: number;
+    logloss: number;
+    mae: number;
+  } | null;
 }
 
 export type GradeKey = 'OFFENSE' | 'DEFENSE' | 'PACE' | 'SOS' | 'CONSISTENCY' | 'POWER';

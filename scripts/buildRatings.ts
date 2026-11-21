@@ -1,10 +1,20 @@
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { solveRatings, type GameRow, type SolverResult } from '../src/engine/ratingSolver';
 import { simulateSeason, type RemainingGame, type SeasonTeamInput } from '../src/engine/seasonSim';
 import { NEUTRAL_ADJUSTMENTS, projectMatchup } from '../src/engine/mathModel';
 import { LEAGUES, isCbb } from '../src/data/leaguesConfig';
 import { blendLeverage, simulateTourney, type TourneyTeam } from '../src/engine/tourneySim';
+import {
+  emptyTracking,
+  gradePending,
+  refreshPending,
+  summarize,
+  type BacktestEntry,
+  type Prediction,
+  type ResultRow,
+  type TrackingFile,
+} from './lib/tracking';
 import type { DataMeta, LeagueConfig, LeverageRow, ScheduledGame, SeasonProjection, TeamMetrics } from '../src/types/sports';
 import {
   DAY,
@@ -386,6 +396,35 @@ function build(s: LeagueSettings) {
     }));
   }
 
+  // ---- Forward tracking: grade earlier predictions, then lock in predictions for upcoming games ----
+  mkdirSync(join(ROOT, 'data/tracking'), { recursive: true });
+  const trackPath = join(ROOT, `data/tracking/${s.file}.json`);
+  let tracking: TrackingFile = existsSync(trackPath) ? (JSON.parse(readFileSync(trackPath, 'utf8')) as TrackingFile) : emptyTracking(s.id);
+  const gradedNow = gradePending(tracking, raw.results as ResultRow[], asOf);
+  tracking = gradedNow.file;
+  const fresh: Prediction[] = raw.upcoming
+    .filter(([, d, h, a]) => Date.parse(d) <= asOf + 14 * DAY && inU.has(h) && inU.has(a))
+    .map(([, d, h, a, neutral, spread, total]) => {
+      const m = projectMatchup(teams[tIndex.get(`${s.id.toLowerCase()}-${a}`) as number], teams[tIndex.get(`${s.id.toLowerCase()}-${h}`) as number], neutral === 1 ? 'NEUTRAL' : 'TEAM_B_HOME', NEUTRAL_ADJUSTMENTS, config);
+      return {
+        key: `${h}|${a}|${d.slice(0, 10)}`,
+        date: d,
+        home: h,
+        away: a,
+        pHome: round(m.teamBWinProb, 4),
+        margin: round(m.expectedMarginB, 2),
+        spread,
+        total,
+        modelTotal: round(m.projectedTotal, 2),
+      };
+    });
+  tracking = refreshPending(tracking, fresh, asOf);
+  writeFileSync(trackPath, JSON.stringify(tracking));
+  const btPath = join(ROOT, 'data/tracking/backtest-history.json');
+  const btAll: BacktestEntry[] = existsSync(btPath) ? JSON.parse(readFileSync(btPath, 'utf8')) : [];
+  const btLatest = [...btAll].reverse().find((e) => e.league === s.id) ?? null;
+  const trackingSummary = summarize(tracking, btLatest);
+
   const meta: DataMeta = {
     asOf: raw.fetchedAt,
     source: 'ESPN public scoreboard API (completed results, schedule, DraftKings lines where posted)',
@@ -399,7 +438,7 @@ function build(s: LeagueSettings) {
     seasonIterations: isCbb(s.id) ? TOURNEY_ITERS : SEASON_ITERS,
     tourney: tourneyMeta,
   };
-  writeFileSync(join(ROOT, `src/data/generated/${s.file}.json`), JSON.stringify({ meta, config, teams, slate, season }));
+  writeFileSync(join(ROOT, `src/data/generated/${s.file}.json`), JSON.stringify({ meta, config, teams, slate, season, tracking: trackingSummary }));
   // Leverage is large and only needed on its own tab, so it lives in a separate lazily-loaded file as integer tuples
   // (team references are indices into `teams`; see expandLeverage in src/data/index.ts):
   // [eventId, teamIdx, oppIdx, epochMinutes, flags(home=1|neutral=2), winProb*1000, base*10, ifWin*10, ifLoss*10, nWin, nLoss]
@@ -429,6 +468,7 @@ function build(s: LeagueSettings) {
       `mu ${config.avgEfficiency} hfa ${config.homeAdvantagePts} marginSd ${config.marginStdDev} totalSd ${config.totalStdDev}`,
   );
   console.log('   top:', top.map((t) => `${t.abbreviation} ${t.powerRating} (${t.record})`).join(', '));
+  console.log(`   tracking: graded ${gradedNow.graded} this run, ${trackingSummary.n} total, ${tracking.pending.length} pending`);
   console.log(`   slate ${slate.length} games, ${slate.filter((g) => g.vegasSpreadHome !== null).length} with lines; remaining ${remaining.length}`);
 }
 

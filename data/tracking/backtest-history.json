@@ -1,0 +1,62 @@
+[
+ {
+  "ranAt": "2026-11-21T16:28:00.820Z",
+  "league": "NFL",
+  "games": 151,
+  "predictions": 110,
+  "carry": 0.65,
+  "accuracy": 0.6182,
+  "brier": 0.2255,
+  "logloss": 0.6475,
+  "mae": 9.18,
+  "bestCarry": 0.65
+ },
+ {
+  "ranAt": "2026-11-21T16:28:01.164Z",
+  "league": "NCAAF",
+  "games": 641,
+  "predictions": 480,
+  "carry": 0.65,
+  "accuracy": 0.6938,
+  "brier": 0.198,
+  "logloss": 0.5794,
+  "mae": 12.57,
+  "bestCarry": 0.65
+ },
+ {
+  "ranAt": "2026-11-21T16:28:01.178Z",
+  "league": "NBA",
+  "games": 235,
+  "predictions": 175,
+  "carry": 0.65,
+  "accuracy": 0.7143,
+  "brier": 0.2016,
+  "logloss": 0.5915,
+  "mae": 11.16,
+  "bestCarry": 0.8
+ },
+ {
+  "ranAt": "2026-11-21T16:28:08.534Z",
+  "league": "NCAAM",
+  "games": 856,
+  "predictions": 640,
+  "carry": 0.65,
+  "accuracy": 0.7703,
+  "brier": 0.1597,
+  "logloss": 0.4902,
+  "mae": 11.68,
+  "bestCarry": 0.65
+ },
+ {
+  "ranAt": "2026-11-21T16:28:15.547Z",
+  "league": "NCAAW",
+  "games": 857,
+  "predictions": 640,
+  "carry": 0.8,
+  "accuracy": 0.8219,
+  "brier": 0.1406,
+  "logloss": 0.4445,
+  "mae": 13.56,
+  "bestCarry": 0.8
+ }
+]
