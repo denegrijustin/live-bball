@@ -15,6 +15,14 @@ export default function Footer({ meta }: { meta: DataMeta }) {
           (IRLS, {meta.irlsIterations} iterations) refines overall performance. Games decay with a {meta.halfLifeDays}-day
           half-life. League home advantage and margin/total variance are fitted to the same results (home advantage is
           shrunk toward its long-run value), and team consistency scales variance.
+          {meta.priorSeason && (
+            <>
+              {' '}
+              Early-season ratings start from the {meta.priorSeason} season: each team is shrunk toward{' '}
+              {Math.round(meta.priorCarry * 100)}% of its prior rating (not the league mean) and the pull fades as
+              games accumulate; carry-over was chosen by walk-forward backtest.
+            </>
+          )}
         </p>
         <p>
           Single-game win probability and projected score are analytic (normal CDF, Abramowitz &amp; Stegun erf). Cover,

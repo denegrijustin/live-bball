@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "data:fetch": "node scripts/fetchData.mjs",
     "data:build": "tsx scripts/buildRatings.ts",
-    "data": "npm run data:fetch && npm run data:build"
+    "data": "npm run data:fetch && npm run data:build",
+    "data:prior": "node scripts/fetchData.mjs --prior",
+    "backtest": "tsx scripts/backtest.ts"
   },
   "dependencies": {
     "lucide-react": "0.468.0",

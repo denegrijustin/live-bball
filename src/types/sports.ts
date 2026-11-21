@@ -136,6 +136,10 @@ export interface DataMeta {
   halfLifeDays: number;
   irlsIterations: number;
   seasonIterations: number;
+  /** Season-start year of the results used as preseason prior (null when none). */
+  priorSeason: string | null;
+  priorCarry: number;
+  priorTeams: number;
 }
 
 export type GradeKey = 'OFFENSE' | 'DEFENSE' | 'PACE' | 'SOS' | 'CONSISTENCY' | 'POWER';

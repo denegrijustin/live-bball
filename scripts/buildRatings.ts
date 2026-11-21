@@ -1,58 +1,25 @@
-/**
- * Turns data/raw/*.json (real game results) into src/data/generated/*.json:
- *   - team ratings from the OLS + IRLS solver,
- *   - league calibration (home advantage, margin/total SD, average points) fitted to the same results,
- *   - the upcoming slate with sportsbook lines where posted,
- *   - season Monte Carlo projections over the remaining schedule.
- *
- * Usage: npx tsx scripts/buildRatings.ts
- */
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { solveRatings, type GameRow, type SolverOptions, type SolverResult } from '../src/engine/ratingSolver';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { solveRatings, type GameRow, type SolverResult } from '../src/engine/ratingSolver';
 import { simulateSeason, type RemainingGame, type SeasonTeamInput } from '../src/engine/seasonSim';
 import { NEUTRAL_ADJUSTMENTS, projectMatchup } from '../src/engine/mathModel';
 import { LEAGUES } from '../src/data/leaguesConfig';
-import type { LeagueConfig, LeagueId, ScheduledGame, SeasonProjection, TeamMetrics } from '../src/types/sports';
+import type { DataMeta, LeagueConfig, ScheduledGame, SeasonProjection, TeamMetrics } from '../src/types/sports';
+import {
+  DAY,
+  ROOT,
+  SETTINGS,
+  loadRaw,
+  priorFor,
+  solvePriorSeason,
+  solverOpts,
+  toRows,
+  universeOf,
+  type LeagueSettings,
+  type PriorSolve,
+} from './lib/shared';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SEASON_ITERS = 10000;
-
-interface RawTeam {
-  abbr: string;
-  name: string;
-  short: string;
-  color: string;
-  alt: string;
-  conf: string;
-  div: string;
-  fbs: boolean;
-}
-interface Raw {
-  fetchedAt: string;
-  teams: Record<string, RawTeam>;
-  results: [string, string, string, number, number, number][];
-  upcoming: [string, string, string, string, number, number | null, number | null, number | null][];
-}
-
-interface LeagueSettings {
-  id: LeagueId;
-  file: string;
-  halfLifeDays: number;
-  ridgeMargin: number; // (noise sd / prior sd)^2
-  ridgePoints: number;
-  ridgeLogit: number;
-  marginCap: number;
-  slateDays: number;
-  hfaPriorSd: number;
-}
-
-const SETTINGS: LeagueSettings[] = [
-  { id: 'NFL', file: 'nfl', halfLifeDays: 75, ridgeMargin: 4.5, ridgePoints: 8, ridgeLogit: 1.6, marginCap: 21, slateDays: 8, hfaPriorSd: 1.0 },
-  { id: 'NCAAF', file: 'ncaaf', halfLifeDays: 70, ridgeMargin: 2.0, ridgePoints: 3.5, ridgeLogit: 0.5, marginCap: 35, slateDays: 7, hfaPriorSd: 1.2 },
-  { id: 'NBA', file: 'nba', halfLifeDays: 60, ridgeMargin: 7, ridgePoints: 10, ridgeLogit: 2.4, marginCap: 25, slateDays: 3, hfaPriorSd: 1.0 },
-];
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 const round = (x: number, d = 1) => Math.round(x * 10 ** d) / 10 ** d;
@@ -75,39 +42,24 @@ function startLabel(iso: string): string {
 }
 
 function build(s: LeagueSettings) {
-  const raw: Raw = JSON.parse(readFileSync(join(ROOT, `data/raw/${s.file}.json`), 'utf8'));
+  const raw = loadRaw(s.file)!;
   const base = LEAGUES[s.id];
   const asOf = Date.parse(raw.fetchedAt);
 
-  // Rated universe: every NFL/NBA team; for NCAAF only FBS. Games against unrated opponents (FCS and below) are
-  // excluded from the fit: they are lopsided, barely informative about FBS quality and bias the home-advantage
-  // estimate because ridge shrinkage under-fits very large talent gaps. They still count toward records.
-  const universe = Object.keys(raw.teams).filter((id) => (s.id === 'NCAAF' ? raw.teams[id].fbs : true) && raw.teams[id].abbr !== 'TBD');
+  // Rated universe; games against unrated opponents (FCS and below) are excluded from the fit (they are lopsided and
+  // bias home advantage) but still count toward records.
+  const universe = universeOf(s, raw);
   const inU = new Set(universe);
   const ids = universe;
   const index = new Map(ids.map((id, i) => [id, i]));
-  const rows: GameRow[] = raw.results
-    .filter(([, h, a]) => inU.has(h) && inU.has(a))
-    .map(([d, h, a, hs, as, neutral]) => ({
-      t: Date.parse(d),
-      h: index.get(h) as number,
-      a: index.get(a) as number,
-      hs,
-      as,
-      neutral: neutral === 1,
-    }));
+  const rows: GameRow[] = toRows(raw, index);
 
-  const opts = (when: number): SolverOptions => ({
-    asOf: when,
-    halfLifeDays: s.halfLifeDays,
-    ridgeMargin: s.ridgeMargin,
-    ridgePoints: s.ridgePoints,
-    ridgeLogit: s.ridgeLogit,
-    marginCap: s.marginCap,
-    hfaPrior: base.homeAdvantagePts,
-    hfaPriorSd: s.hfaPriorSd,
-    noiseSd: base.marginStdDev,
-  });
+  // Preseason prior: last season's solved ratings, carried over at s.carry.
+  const priorRaw = loadRaw(s.file, true);
+  const priorSolve: PriorSolve | null = priorRaw ? solvePriorSeason(s, priorRaw) : null;
+  const prior = priorFor(ids, priorSolve, s.carry);
+
+  const opts = (when: number) => solverOpts(s, when, prior);
 
   const now = solveRatings(ids.length, rows, opts(asOf));
   const cutoff = asOf - 14 * 86400000;
@@ -134,7 +86,6 @@ function build(s: LeagueSettings) {
   let sm = 0;
   let st = 0;
   let nGames = 0;
-  const DAY = 86400000;
   for (const g of rows) {
     const w = Math.pow(0.5, (asOf - g.t) / DAY / s.halfLifeDays);
     const v = g.neutral ? 0 : 1;
@@ -297,13 +248,16 @@ function build(s: LeagueSettings) {
     cfpPct: round(odds[k].cfpPct),
   }));
 
-  const meta = {
+  const meta: DataMeta = {
     asOf: raw.fetchedAt,
     source: 'ESPN public scoreboard API (completed results, schedule, DraftKings lines where posted)',
     gamesUsed: rows.length,
     teamsRated: ids.length,
     halfLifeDays: s.halfLifeDays,
     irlsIterations: now.iterations,
+    priorSeason: priorRaw ? `${priorRaw.seasonStartYear}` : null,
+    priorCarry: priorRaw ? s.carry : 0,
+    priorTeams: prior ? prior.has.reduce((m, v) => m + v, 0) : 0,
     seasonIterations: SEASON_ITERS,
   };
   writeFileSync(join(ROOT, `src/data/generated/${s.file}.json`), JSON.stringify({ meta, config, teams, slate, season }));

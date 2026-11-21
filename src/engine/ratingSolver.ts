@@ -21,6 +21,21 @@ export interface GameRow {
   neutral: boolean;
 }
 
+/**
+ * Preseason prior from last season's solved ratings, aligned to this season's team indices.
+ * Each team with a prior is shrunk toward carry * (last season's rating) instead of toward the league mean, and its
+ * ridge is scaled by 1 / (1 - carry^2): carrying information forward makes the leftover uncertainty smaller. As games
+ * accumulate the data term dominates, so the prior fades without any hand-set schedule.
+ */
+export interface PriorInfo {
+  carry: number; // 0..1 year-over-year carry-over of team strength
+  has: Uint8Array; // 1 if the team has a prior rating
+  margin: Float64Array; // stage 1a rating (points)
+  offDev: Float64Array; // offence minus league mean points
+  defDev: Float64Array; // defence (points allowed) minus league mean points
+  overall: Float64Array; // stage 2 rating (points)
+}
+
 export interface SolverOptions {
   asOf: number; // epoch ms: recency weights are measured from here
   halfLifeDays: number;
@@ -36,6 +51,7 @@ export interface SolverOptions {
   hfaPrior: number;
   hfaPriorSd: number;
   noiseSd: number;
+  prior?: PriorInfo;
 }
 
 export interface SolverResult {
@@ -103,6 +119,11 @@ function accumulate(
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
 
+function priorScale(o: SolverOptions, i: number): number {
+  const p = o.prior;
+  return p && p.has[i] ? 1 / (1 - p.carry * p.carry) : 1;
+}
+
 export function solveRatings(nTeams: number, games: GameRow[], o: SolverOptions): SolverResult {
   const n = nTeams;
   const N = games.length;
@@ -120,7 +141,11 @@ export function solveRatings(nTeams: number, games: GameRow[], o: SolverOptions)
     const y = clamp(G.hs - G.as, -o.marginCap, o.marginCap);
     accumulate(Am, bm, nm, [G.h, G.a, n], [1, -1, v], y, w[g]);
   }
-  for (let i = 0; i < n; i++) Am[i * nm + i] += o.ridgeMargin;
+  for (let i = 0; i < n; i++) {
+    const lam = o.ridgeMargin * priorScale(o, i);
+    Am[i * nm + i] += lam;
+    if (o.prior?.has[i]) bm[i] += lam * o.prior.carry * o.prior.margin[i];
+  }
   const lamM = (o.noiseSd * o.noiseSd) / (o.hfaPriorSd * o.hfaPriorSd);
   Am[n * nm + n] += lamM;
   bm[n] += lamM * o.hfaPrior;
@@ -140,20 +165,36 @@ export function solveRatings(nTeams: number, games: GameRow[], o: SolverOptions)
     accumulate(Ap, bp, np, [G.h, n + G.a, ETA, MU], [1, 1, v, 1], G.hs, w[g]);
     accumulate(Ap, bp, np, [G.a, n + G.h, ETA, MU], [1, 1, -v, 1], G.as, w[g]);
   }
-  for (let i = 0; i < 2 * n; i++) Ap[i * np + i] += o.ridgePoints;
+  for (let i = 0; i < n; i++) {
+    const lam = o.ridgePoints * priorScale(o, i);
+    Ap[i * np + i] += lam;
+    Ap[(n + i) * np + (n + i)] += lam;
+    if (o.prior?.has[i]) {
+      bp[i] += lam * o.prior.carry * o.prior.offDev[i];
+      bp[n + i] += lam * o.prior.carry * o.prior.defDev[i];
+    }
+  }
   // eta is the per-scorer half of the home advantage: prior mean hfa/2, prior sd hfaSd/2, obs variance ~ noiseSd^2/2.
   const lamE = (2 * o.noiseSd * o.noiseSd) / (o.hfaPriorSd * o.hfaPriorSd);
   Ap[ETA * np + ETA] += lamE;
   bp[ETA] += (lamE * o.hfaPrior) / 2;
   Ap[MU * np + MU] += 1e-6;
   const solP = choleskySolve(Ap, bp, np);
-  const mu = solP[MU];
   const eta = solP[ETA];
+  // Re-centre so offence and defence both average to mu (a prior can shift the unpenalised intercept). Predictions
+  // are unchanged: off_t + def_u - mu == mu0 + O_t + D_u.
+  let meanO = 0;
+  let meanD = 0;
+  for (let i = 0; i < n; i++) {
+    meanO += solP[i] / n;
+    meanD += solP[n + i] / n;
+  }
+  const mu = solP[MU] + meanO + meanD;
   const off = new Float64Array(n);
   const def = new Float64Array(n);
   for (let i = 0; i < n; i++) {
-    off[i] = mu + solP[i];
-    def[i] = mu + solP[n + i];
+    off[i] = mu + solP[i] - meanO;
+    def[i] = mu + solP[n + i] - meanD;
   }
 
   // Residuals of the off/def model drive the calibrated spreads, totals and team consistency.
@@ -219,7 +260,11 @@ export function solveRatings(nTeams: number, games: GameRow[], o: SolverOptions)
       const z = eta2 + (y - pi) / V;
       accumulate(A, b, nl, [G.h, G.a, n], [1, -1, v], z, w[g] * V);
     }
-    for (let i = 0; i < n; i++) A[i * nl + i] += o.ridgeLogit;
+    for (let i = 0; i < n; i++) {
+      const lam = o.ridgeLogit * priorScale(o, i);
+      A[i * nl + i] += lam;
+      if (o.prior?.has[i]) b[i] += (lam * o.prior.carry * o.prior.overall[i]) / sigma;
+    }
     A[n * nl + n] += lamG;
     b[n] += (lamG * o.hfaPrior) / sigma0;
     const next = choleskySolve(A, b, nl);

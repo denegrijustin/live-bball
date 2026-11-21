@@ -8,6 +8,8 @@ npm install
 npm run dev        # app (uses the committed data snapshot)
 npm run build      # typecheck + production build
 npm run data       # refresh: fetch real results from ESPN, then re-solve ratings and season odds
+npm run data:prior # (rarely) refetch last season's results used as preseason priors
+npm run backtest   # walk-forward backtest of the model and prior carry-over weights
 ```
 
 ## Views
@@ -38,8 +40,15 @@ Sportsbook lines appear only where ESPN has posted them (NBA lines are often mis
   (random on equal wins). NFL: division winners + 3 wild cards per conference; NBA: top 6 + play-in; NCAAF:
   top-12 by simulated record then rating (no conference championships) and bowl eligibility.
 
+## Preseason priors
+Last season's results (`data/raw/*-prior.json`) are solved with the same model. Each team is then shrunk toward
+`carry x last season's rating` (not the league mean) with ridge scaled by `1/(1-carry^2)`; as games accumulate the data
+term dominates, so the prior fades on its own. `carry` is NFL 0.65, NCAAF 0.65, NBA 0.7, picked from the plateau of
+`npm run backtest` (the curve is flat above ~0.65). Walk-forward results over 5 cutoffs this season, carry 0 -> chosen:
+winner accuracy 56% -> ~64% NFL, 65% -> ~69% NCAAF, 65% -> ~70% NBA, with better Brier and log loss in all three.
+Carry-over was tuned on the same season it is evaluated on (one parameter per league), so expect a little optimism.
+
 ## Known limitations
-- No preseason priors (prior-season results are not fetched), so early-season ratings lean on ridge shrinkage.
 - Tempo/pace is an index inferred from game totals, not real plays or possessions.
-- Walk-forward check (rate through 14 days ago, predict games since): winner accuracy 76% NFL (n=29), 60% NCAAF
-  (n=125), 61% NBA (n=97); Brier 0.214 / 0.229 / 0.227 vs 0.250 for a coin flip. Small samples.
+- No roster, transfer-portal or coaching-change information, so teams that changed a lot carry over too much.
+- Backtest samples are small (110 / 475 / 170 predictions per carry setting).

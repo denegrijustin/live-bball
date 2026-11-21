@@ -3,7 +3,8 @@
  * Pulls completed results, the remaining schedule and (when posted) sportsbook lines from ESPN's public
  * scoreboard JSON and writes compact snapshots to data/raw/{nfl,ncaaf,nba}.json.
  *
- * Usage: node scripts/fetchData.mjs [nfl|ncaaf|nba ...]
+ * Usage: node scripts/fetchData.mjs [nfl|ncaaf|nba ...] [--prior]
+ *   --prior  fetch last season's results instead (used as preseason priors)
  * Uses curl (honours the proxy/CA settings of the environment) so it has no npm dependencies.
  */
 import { execFile } from 'node:child_process';
@@ -100,7 +101,14 @@ function parseEvent(e) {
 
 const hex = (c, fb) => (c ? `#${String(c).replace('#', '')}` : fb);
 
-async function collect(league) {
+// Season year used by ESPN for football (the year the season starts) relative to today; NBA seasons start in autumn.
+function seasonStartYear(now = new Date()) {
+  return now.getUTCMonth() >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+}
+
+async function collect(league, prior = false) {
+  const year = seasonStartYear() - (prior ? 1 : 0);
+  const yq = prior ? `&dates=${year}` : '';
   const events = new Map();
   const add = (list) => {
     for (const raw of list ?? []) {
@@ -112,7 +120,7 @@ async function collect(league) {
 
   if (league === 'nfl') {
     const weeks = Array.from({ length: 18 }, (_, i) => i + 1);
-    await pool(weeks, 6, async (w) => add((await getJson(`${BASE}/football/nfl/scoreboard?seasontype=2&week=${w}&limit=100`)).events));
+    await pool(weeks, 6, async (w) => add((await getJson(`${BASE}/football/nfl/scoreboard?seasontype=2&week=${w}&limit=100${yq}`)).events));
   } else if (league === 'ncaaf') {
     const confs = await getJson(`${BASE}/football/college-football/scoreboard/conferences`);
     const confList = confs.conferences ?? [];
@@ -126,12 +134,12 @@ async function collect(league) {
     const jobs = [];
     for (let w = 1; w <= 15; w++) for (const g of [80, 81]) jobs.push([w, g]);
     await pool(jobs, 6, async ([w, g]) =>
-      add((await getJson(`${BASE}/football/college-football/scoreboard?week=${w}&groups=${g}&limit=400`)).events),
+      add((await getJson(`${BASE}/football/college-football/scoreboard?week=${w}&groups=${g}&limit=400${yq}`)).events),
     );
   } else if (league === 'nba') {
     const days = [];
-    const start = Date.UTC(2026, 9, 18);
-    const end = Date.UTC(2027, 3, 20);
+    const start = Date.UTC(year, 9, 18);
+    const end = Date.UTC(year + 1, 3, 20);
     for (let t = start; t <= end; t += 86400000) days.push(new Date(t).toISOString().slice(0, 10).replaceAll('-', ''));
     await pool(days, 8, async (d) => add((await getJson(`${BASE}/basketball/nba/scoreboard?dates=${d}&limit=100`)).events));
   } else throw new Error(`unknown league ${league}`);
@@ -192,6 +200,8 @@ async function collect(league) {
 
   return {
     league,
+    seasonStartYear: year,
+    prior,
     source: 'ESPN public scoreboard API (site.api.espn.com)',
     fetchedAt: new Date().toISOString(),
     teams: teamOut,
@@ -201,12 +211,15 @@ async function collect(league) {
   };
 }
 
-const wanted = process.argv.slice(2).length ? process.argv.slice(2) : ['nfl', 'ncaaf', 'nba'];
+const args = process.argv.slice(2);
+const prior = args.includes('--prior');
+const names = args.filter((a) => !a.startsWith('--'));
+const wanted = names.length ? names : ['nfl', 'ncaaf', 'nba'];
 await mkdir(join(ROOT, 'data/raw'), { recursive: true });
 for (const lg of wanted) {
-  process.stdout.write(`fetching ${lg}… `);
-  const data = await collect(lg);
-  await writeFile(join(ROOT, `data/raw/${lg}.json`), JSON.stringify(data));
+  process.stdout.write(`fetching ${lg}${prior ? ' (prior season)' : ''}… `);
+  const data = await collect(lg, prior);
+  await writeFile(join(ROOT, `data/raw/${lg}${prior ? '-prior' : ''}.json`), JSON.stringify(data));
   const withOdds = data.upcoming.filter((u) => u[5] !== null).length;
   console.log(
     `${Object.keys(data.teams).length} teams, ${data.results.length} results, ${data.upcoming.length} upcoming (${withOdds} with lines)`,
