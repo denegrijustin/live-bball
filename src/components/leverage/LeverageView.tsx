@@ -122,7 +122,66 @@ export default function LeverageView({ league, teams, leverage, season, slate, i
           </label>
         </div>
 
-        <div className="card overflow-x-auto">
+        {/* Phones: a card per game */}
+        <div className="space-y-3 md:hidden">
+          {shownGames.map((g) => {
+            const rows = [...g.rows].sort((a, b) => swingOf(b) - swingOf(a));
+            const first = rows[0];
+            const t0 = byId.get(first.teamId);
+            const o0 = byId.get(first.oppId);
+            if (!t0 || !o0) return null;
+            const sg = slateById.get(g.gameId);
+            return (
+              <article key={g.gameId} className="card p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="font-semibold">
+                      {first.home ? `${o0.abbreviation} @ ${t0.abbreviation}` : `${t0.abbreviation} @ ${o0.abbreviation}`}
+                      {first.neutral && <span className="ml-1 rounded bg-sky-500/15 px-1 text-[10px] text-sky-300">N</span>}
+                    </div>
+                    <div className="text-[11px] text-slate-500">{fmtDay(first.date)}</div>
+                  </div>
+                  {sg && (
+                    <button onClick={() => onSimulate(sg)} className="inline-flex shrink-0 items-center gap-1 rounded-md bg-emerald-500 px-3 py-2 text-xs font-bold text-slate-950">
+                      <Play size={11} fill="currentColor" /> Simulate
+                    </button>
+                  )}
+                </div>
+                <div className="mt-2 space-y-2">
+                  {rows.map((r) => {
+                    const t = byId.get(r.teamId);
+                    if (!t) return null;
+                    return (
+                      <div key={r.teamId} className="rounded-lg bg-slate-950/60 p-2">
+                        <div className="flex items-center gap-2">
+                          <TeamBadge team={t} size={24} />
+                          <span className="font-medium">{t.shortName}</span>
+                          <span className="num text-[11px] text-slate-500">win {(r.winProb * 100).toFixed(0)}%</span>
+                          <span className="ml-auto"><Swing v={swingOf(r)} /></span>
+                        </div>
+                        <div className="num mt-1.5 grid grid-cols-3 gap-1 text-xs">
+                          <div><div className="text-[10px] uppercase text-slate-500">Now</div>{r.bidBase.toFixed(1)}%</div>
+                          <div><div className="text-[10px] uppercase text-slate-500">If win</div><Pct v={r.bidIfWin} base={r.bidBase} /></div>
+                          <div><div className="text-[10px] uppercase text-slate-500">If loss</div><Pct v={r.bidIfLoss} base={r.bidBase} /></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </article>
+            );
+          })}
+          {games.length === 0 && <p className="py-8 text-center text-slate-500">No games clear that swing in this window.</p>}
+          {games.length > 20 && (
+            <div className="text-center">
+              <button onClick={() => setShowAll((v) => !v)} className="text-xs font-semibold text-emerald-300">
+                {showAll ? 'Show top 20 only' : `Show all ${games.length} games`}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="card hidden overflow-x-auto md:block">
           <table className="w-full min-w-[860px] text-sm">
             <thead className="border-b border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500">
               <tr>
@@ -236,12 +295,12 @@ export default function LeverageView({ league, teams, leverage, season, slate, i
 
         {team && (
           <div className="card overflow-x-auto">
-            <table className="w-full min-w-[700px] text-sm">
+            <table className="w-full text-sm sm:min-w-[700px]">
               <thead className="border-b border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 <tr>
                   <th className="px-3 py-2 text-left">Date</th>
                   <th className="px-2 py-2 text-left">Opponent</th>
-                  <th className="px-2 py-2 text-right">Win %</th>
+                  <th className="hidden px-2 py-2 text-right sm:table-cell">Win %</th>
                   <th className="px-2 py-2 text-right">If win</th>
                   <th className="px-2 py-2 text-right">If loss</th>
                   <th className="px-2 py-2 text-right">Swing</th>
@@ -261,7 +320,7 @@ export default function LeverageView({ league, teams, leverage, season, slate, i
                           <span>{o.shortName}</span>
                         </div>
                       </td>
-                      <td className="num px-2 py-2 text-right">{(r.winProb * 100).toFixed(0)}%</td>
+                      <td className="num hidden px-2 py-2 text-right sm:table-cell">{(r.winProb * 100).toFixed(0)}%</td>
                       <td className="px-2 py-2 text-right"><Pct v={r.bidIfWin} base={r.bidBase} /></td>
                       <td className="px-2 py-2 text-right"><Pct v={r.bidIfLoss} base={r.bidBase} /></td>
                       <td className="px-2 py-2 text-right"><Swing v={swingOf(r)} /></td>

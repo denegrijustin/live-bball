@@ -72,10 +72,10 @@ export default function TeamDetailView({ league, team, allTeams, detail, season,
 
       {/* Header */}
       <section className="card overflow-hidden" style={{ background: `linear-gradient(135deg, ${team.primaryColor}33, transparent 60%)` }}>
-        <div className="flex flex-wrap items-center gap-4 p-5">
-          <TeamBadge team={team} size={72} />
+        <div className="flex flex-wrap items-center gap-3 p-4 sm:gap-4 sm:p-5">
+          <TeamBadge team={team} size={64} />
           <div className="min-w-0 flex-1">
-            <h2 className="text-2xl font-extrabold">{team.name}</h2>
+            <h2 className="text-xl font-extrabold sm:text-2xl">{team.name}</h2>
             <div className="num text-sm text-slate-400">
               {team.record} · {team.division ?? team.conference}
               {team.division && league.id !== 'NFL' ? ` · ${team.conference}` : ''}
@@ -88,9 +88,9 @@ export default function TeamDetailView({ league, team, allTeams, detail, season,
               </span>
             </div>
           </div>
-          <div className="num grid grid-cols-3 gap-2 text-center">
+          <div className="num grid w-full grid-cols-3 gap-2 text-center sm:w-auto">
             <Stat label="Power" value={team.powerRating.toFixed(1)} />
-            <Stat label="Rank" value={`#${powerRank} of ${allTeams.length}`} />
+            <Stat label="Rank" value={`#${powerRank}`} />
             <Stat label="Net" value={fmtSigned(team.offRating - team.defRating)} tone={team.offRating - team.defRating >= 0 ? 'good' : 'bad'} />
           </div>
         </div>
@@ -183,10 +183,10 @@ export default function TeamDetailView({ league, team, allTeams, detail, season,
         <section className="card overflow-x-auto">
           <div className="px-4 pt-4"><SectionTitle>Upcoming games</SectionTitle></div>
           {detail && detail.upcoming.length > 0 ? (
-            <table className="w-full min-w-[420px] text-sm">
+            <table className="w-full text-sm sm:min-w-[420px]">
               <thead className="border-b border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 <tr>
-                  <th className="px-4 py-2 text-left">Date</th>
+                  <th className="px-3 py-2 text-left sm:px-4">Date</th>
                   <th className="px-2 py-2 text-left">Opponent</th>
                   <th className="px-2 py-2 text-right">Win %</th>
                   <th className="px-2 py-2 text-right">Line</th>
@@ -237,7 +237,7 @@ export default function TeamDetailView({ league, team, allTeams, detail, season,
         <section className="card overflow-x-auto">
           <div className="px-4 pt-4"><SectionTitle>Game log</SectionTitle></div>
           {detail && detail.log.length > 0 ? (
-            <table className="w-full min-w-[460px] text-sm">
+            <table className="w-full text-sm sm:min-w-[460px]">
               <thead className="border-b border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 <tr>
                   <th className="px-4 py-2 text-left">Date</th>

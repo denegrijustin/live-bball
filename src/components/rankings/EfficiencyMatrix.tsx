@@ -73,9 +73,9 @@ export default function EfficiencyMatrix({ league, teams, highlightIds, onSelect
 
   return (
     <div className="card p-4">
-      <div className="h-[560px]">
+      <div className="h-[420px] sm:h-[560px]">
         <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={{ top: 24, right: 24, bottom: 36, left: 12 }}>
+          <ScatterChart margin={{ top: 16, right: 12, bottom: 36, left: 0 }}>
             <CartesianGrid stroke="#1e293b" />
             <XAxis
               type="number"
@@ -122,7 +122,7 @@ export default function EfficiencyMatrix({ league, teams, highlightIds, onSelect
           </ScatterChart>
         </ResponsiveContainer>
       </div>
-      <div className="mt-2 grid grid-cols-2 gap-2 text-center text-[11px] font-bold uppercase tracking-wider">
+      <div className="mt-2 grid grid-cols-1 gap-2 text-center text-[11px] font-bold uppercase tracking-wider sm:grid-cols-2">
         <span className="rounded bg-emerald-500/10 py-1 text-emerald-400">Top-right: Elite (strong O + strong D)</span>
         <span className="rounded bg-sky-500/10 py-1 text-sky-400">Top-left: Defense-first</span>
         <span className="rounded bg-amber-500/10 py-1 text-amber-400">Bottom-right: Offense-first</span>

@@ -32,7 +32,7 @@ export default function MarginHistogram({ teamA, teamB, mc, vegasSpreadB }: Prop
         <span style={{ color: colorA }}>◀ {teamA.abbreviation} wins</span>
         <span style={{ color: colorB }}>{teamB.abbreviation} wins ▶</span>
       </div>
-      <div className="h-64">
+      <div className="h-52 sm:h-64">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={mc.histogram} margin={{ top: 22, right: 8, left: -12, bottom: 0 }} barCategoryGap={1}>
             <CartesianGrid stroke="#1e293b" vertical={false} />

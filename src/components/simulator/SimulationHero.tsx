@@ -28,11 +28,15 @@ export default function SimulationHero({ league, teamA, teamB, model, mc }: Prop
   const aWins = model.teamAProjectedScore > model.teamBProjectedScore;
 
   const side = (team: TeamMetrics, score: number, win: boolean, align: 'left' | 'right') => (
-    <div className={`flex flex-1 items-center gap-4 ${align === 'right' ? 'flex-row-reverse text-right' : ''}`}>
-      <TeamBadge team={team} size={64} />
+    <div
+      className={`flex flex-col items-center gap-1.5 text-center sm:flex-1 sm:gap-4 ${
+        align === 'right' ? 'sm:flex-row-reverse sm:text-right' : 'sm:flex-row sm:text-left'
+      }`}
+    >
+      <TeamBadge team={team} size={56} />
       <div>
         <div className="text-sm font-semibold text-slate-300">{team.shortName}</div>
-        <div className={`num text-5xl font-extrabold leading-none ${win ? 'text-white' : 'text-slate-500'}`}>
+        <div className={`num text-4xl font-extrabold leading-none sm:text-5xl ${win ? 'text-white' : 'text-slate-500'}`}>
           {score.toFixed(1)}
         </div>
         <div className="num mt-1 text-xs text-slate-500">{team.record}</div>
@@ -41,10 +45,11 @@ export default function SimulationHero({ league, teamA, teamB, model, mc }: Prop
   );
 
   return (
-    <section className="card overflow-hidden p-5">
-      <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-center">
+    <section className="card overflow-hidden p-4 sm:p-5">
+      <div className="mb-2 text-center text-[11px] font-bold uppercase tracking-widest text-slate-600 sm:hidden">Projected final</div>
+      <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-row sm:items-center sm:gap-4">
         {side(teamA, model.teamAProjectedScore, aWins, 'left')}
-        <div className="text-center text-xs font-bold uppercase tracking-widest text-slate-600">
+        <div className="hidden text-center text-xs font-bold uppercase tracking-widest text-slate-600 sm:block">
           Projected
           <br />
           Final

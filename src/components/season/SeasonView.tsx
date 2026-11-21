@@ -49,7 +49,7 @@ function columnsFor(league: LeagueConfig['id']): Col[] {
 function PctCell({ value }: { value: number }) {
   const hue = value >= 80 ? '#10b981' : value >= 40 ? '#84cc16' : value >= 10 ? '#f59e0b' : '#64748b';
   return (
-    <div className="ml-auto w-24">
+    <div className="ml-auto w-20 sm:w-24">
       <div className="num text-right font-semibold" style={{ color: value > 0 ? undefined : '#475569' }}>
         {value >= 99.95 ? '100' : value < 0.05 ? '0' : value.toFixed(1)}%
       </div>
@@ -107,13 +107,13 @@ export default function SeasonView({ league, teams, season, iterations, onSelect
       </div>
 
       <div className="card overflow-x-auto">
-        <table className="w-full min-w-[700px] text-sm">
+        <table className="w-full text-sm sm:min-w-[700px]">
           <thead className="border-b border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500">
             <tr>
               <th className="px-3 py-2 text-left">Team</th>
               <th className="px-2 py-2 text-right">Record</th>
-              <th className="px-2 py-2 text-right">Left</th>
-              <th className="px-2 py-2 text-right">Proj. Record</th>
+              <th className="hidden px-2 py-2 text-right sm:table-cell">Left</th>
+              <th className="hidden px-2 py-2 text-right sm:table-cell">Proj. Record</th>
               {cols.map((c) => (
                 <th key={c.key} className="px-2 py-2 text-right" title={c.title}>
                   <button
@@ -124,7 +124,7 @@ export default function SeasonView({ league, teams, season, iterations, onSelect
                   </button>
                 </th>
               ))}
-              {cbb && <th className="px-2 py-2 text-right" title="Average seed line when in the field">Avg Seed</th>}
+              {cbb && <th className="hidden px-2 py-2 text-right sm:table-cell" title="Average seed line when in the field">Avg Seed</th>}
             </tr>
           </thead>
           <tbody>
@@ -147,8 +147,8 @@ export default function SeasonView({ league, teams, season, iterations, onSelect
                     </div>
                   </td>
                   <td className="num px-2 py-2 text-right">{t.record}</td>
-                  <td className="num px-2 py-2 text-right text-slate-400">{p.gamesRemaining}</td>
-                  <td className="num px-2 py-2 text-right font-semibold">
+                  <td className="num hidden px-2 py-2 text-right text-slate-400 sm:table-cell">{p.gamesRemaining}</td>
+                  <td className="num hidden whitespace-nowrap px-2 py-2 text-right font-semibold sm:table-cell">
                     {p.avgWins.toFixed(1)}–{(games - p.avgWins).toFixed(1)}
                   </td>
                   {cols.map((c) => (
@@ -157,7 +157,7 @@ export default function SeasonView({ league, teams, season, iterations, onSelect
                     </td>
                   ))}
                   {cbb && (
-                    <td className="num px-2 py-2 text-right">{p.avgSeed ? p.avgSeed.toFixed(1) : '—'}</td>
+                    <td className="num hidden px-2 py-2 text-right sm:table-cell">{p.avgSeed ? p.avgSeed.toFixed(1) : '—'}</td>
                   )}
                 </tr>
               );

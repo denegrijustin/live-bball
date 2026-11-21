@@ -36,35 +36,35 @@ export default function GameSlateCard({ row, allTeams, onSimulate }: Props) {
   const n = allTeams.length;
 
   const teamRow = (t: TeamMetrics, prob: number, score: number, line: string) => (
-    <div className="flex items-center gap-3 py-1.5">
-      <TeamBadge team={t} size={36} />
+    <div className="flex items-center gap-2 py-1.5 sm:gap-3">
+      <TeamBadge team={t} size={34} />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold">{t.name}</div>
+        <div className="truncate text-sm font-semibold"><span className="sm:hidden">{t.shortName}</span><span className="hidden sm:inline">{t.name}</span></div>
         <div className="flex items-center gap-2">
-          <span className="num text-xs text-slate-500">{t.record}</span>
-          <Last5 results={t.last5} />
+          <span className="num whitespace-nowrap text-xs text-slate-500">{t.record}</span>
+          <span className="hidden sm:block"><Last5 results={t.last5} /></span>
         </div>
       </div>
-      <div className="num w-14 text-right text-sm text-slate-400">{fmtPct(prob * 100, 0)}</div>
-      <div className="num w-14 text-right text-lg font-bold">{score.toFixed(1)}</div>
-      <div className="num w-14 text-right text-sm font-semibold text-amber-300">{line}</div>
+      <div className="num w-10 text-right text-sm text-slate-400 sm:w-14">{fmtPct(prob * 100, 0)}</div>
+      <div className="num w-12 text-right text-base font-bold sm:w-14 sm:text-lg">{score.toFixed(1)}</div>
+      <div className="num w-12 text-right text-sm font-semibold text-amber-300 sm:w-14">{line}</div>
     </div>
   );
 
   return (
     <article className="card overflow-hidden">
-      <div className="flex items-center justify-between border-b border-slate-800 px-4 py-2 text-xs text-slate-400">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-800 px-3 py-2 text-xs text-slate-400 sm:px-4">
         <span className="font-semibold">
           {game.startTime} · {game.weekOrDateLabel}
           {game.neutralSite && <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-sky-300">Neutral</span>}
         </span>
-        <div className="num flex gap-6 pr-1">
-          <span className="w-14 text-right">Win %</span>
-          <span className="w-14 text-right">Proj</span>
-          <span className="w-14 text-right">Line</span>
+        <div className="num flex gap-2 pr-1 sm:gap-6">
+          <span className="w-10 text-right sm:w-14">Win</span>
+          <span className="w-12 text-right sm:w-14">Proj</span>
+          <span className="w-12 text-right sm:w-14">Line</span>
         </div>
       </div>
-      <div className="px-4 py-2">
+      <div className="px-3 py-2 sm:px-4">
         {teamRow(away, model.teamAWinProb, model.teamAProjectedScore, row.hasSpread ? fmtLine(-row.vegasSpreadHome) : '—')}
         {teamRow(home, model.teamBWinProb, model.teamBProjectedScore, row.hasSpread ? fmtLine(row.vegasSpreadHome) : '—')}
       </div>

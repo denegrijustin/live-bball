@@ -82,7 +82,66 @@ export default function LeanBoardView({ league, games, teams, onSimulate }: Prop
         </label>
       </div>
 
-      <div className="card overflow-x-auto">
+      {/* Phones: one card per game so the pick and edge are visible without sideways scrolling */}
+      <div className="space-y-3 md:hidden">
+        {sorted.map((r) => {
+          const pick = r.spreadPick === 'HOME' ? r.home : r.away;
+          return (
+            <article key={r.game.id} className="card p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <TeamBadge team={r.away} size={30} />
+                  <span className="text-xs text-slate-500">@</span>
+                  <TeamBadge team={r.home} size={30} />
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold">{r.away.abbreviation} @ {r.home.abbreviation}</div>
+                    <div className="truncate text-[11px] text-slate-500">{r.game.startTime}</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => onSimulate(r.game)}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md bg-emerald-500 px-3 py-2 text-xs font-bold text-slate-950"
+                >
+                  <Play size={11} fill="currentColor" /> Simulate
+                </button>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="rounded-lg bg-slate-950/60 p-2">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Spread</div>
+                  {r.hasSpread ? (
+                    <>
+                      <div className={`font-semibold ${r.spreadEdge >= 2 ? 'text-emerald-300' : ''}`}>{pick.abbreviation} {fmtLine(r.spreadPickLine)}</div>
+                      <div className="num text-[11px] text-slate-500">edge {r.spreadEdge.toFixed(1)} · model {fmtLine(r.modelSpreadHome)}</div>
+                      <div className="num text-[11px] text-slate-500">{fmtPct(r.spreadCoverProb)} · EV {fmtMoney(r.spreadEv)}</div>
+                    </>
+                  ) : (
+                    <div className="text-sm text-slate-600">No line posted</div>
+                  )}
+                </div>
+                <div className="rounded-lg bg-slate-950/60 p-2">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total</div>
+                  {r.hasTotal ? (
+                    <>
+                      <div className={`font-semibold ${r.totalEdge >= 2 ? 'text-emerald-300' : ''}`}>{r.totalPick === 'OVER' ? 'Over' : 'Under'} {r.vegasTotal}</div>
+                      <div className="num text-[11px] text-slate-500">edge {r.totalEdge.toFixed(1)} · model {r.modelTotal.toFixed(1)}</div>
+                      <div className="num text-[11px] text-slate-500">{fmtPct(r.totalProb)} · EV {fmtMoney(r.totalEv)}</div>
+                    </>
+                  ) : (
+                    <div className="text-sm text-slate-600">No total</div>
+                  )}
+                </div>
+              </div>
+            </article>
+          );
+        })}
+        {sorted.length === 0 && (
+          <p className="py-8 text-center text-slate-500">
+            {rows.length === 0 ? 'No sportsbook lines are posted yet for this slate.' : 'No games clear the minimum edge.'}
+          </p>
+        )}
+      </div>
+
+      <div className="card hidden overflow-x-auto md:block">
         <table className="w-full min-w-[920px] text-sm">
           <thead className="border-b border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500">
             <tr>
