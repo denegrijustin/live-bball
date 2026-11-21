@@ -5,6 +5,7 @@ import type {
   LeverageRow,
   ScheduledGame,
   SeasonProjection,
+  TeamDetail,
   TeamMetrics,
   TrackingSummary,
 } from '../types/sports';
@@ -67,6 +68,66 @@ export async function ensureLeverage(l: LeagueId): Promise<void> {
   );
 }
 export const isLeverageLoaded = (l: LeagueId): boolean => !LEVERAGE_LOADERS[l] || leverageCache.has(l);
+
+/**
+ * Per-team detail written by buildRatings.ts as compact tuples indexed by team position (see the build script):
+ *  log:      [epochMin, oppIdx (-1 = unrated), flags(home=1|neutral=2), pts, oppPts, preGameWinProb*1000 (-1 = n/a), oppName?]
+ *  upcoming: [epochMin, oppIdx, flags, winProb*1000, teamSpread*10 | null]
+ *  history:  [epochDays, power*10, rank]
+ */
+type DetailTuple = [unknown[][], unknown[][], unknown[][]];
+const DETAIL_LOADERS: Record<LeagueId, () => Promise<{ default: unknown }>> = {
+  NFL: () => import('./generated/nfl-teams.json'),
+  NCAAF: () => import('./generated/ncaaf-teams.json'),
+  NBA: () => import('./generated/nba-teams.json'),
+  NCAAM: () => import('./generated/ncaam-teams.json'),
+  NCAAW: () => import('./generated/ncaaw-teams.json'),
+};
+const detailCache = new Map<LeagueId, DetailTuple[]>();
+
+export async function ensureTeamDetail(l: LeagueId): Promise<void> {
+  if (detailCache.has(l)) return;
+  await ensureLeague(l);
+  const m = await DETAIL_LOADERS[l]();
+  detailCache.set(l, m.default as unknown as DetailTuple[]);
+}
+export const isTeamDetailLoaded = (l: LeagueId): boolean => detailCache.has(l);
+
+/** Expands one team's compact detail. Returns null until ensureTeamDetail(l) has resolved. */
+export function getTeamDetail(l: LeagueId, teamId: string): TeamDetail | null {
+  const all = detailCache.get(l);
+  const teams = getTeams(l);
+  const idx = teams.findIndex((t) => t.id === teamId);
+  if (!all || idx < 0 || !all[idx]) return null;
+  const [log, up, hist] = all[idx];
+  const iso = (min: number) => new Date(min * 60000).toISOString();
+  return {
+    log: log.map((r) => {
+      const oi = r[1] as number;
+      const flags = r[2] as number;
+      const wp = r[5] as number;
+      return {
+        date: iso(r[0] as number),
+        oppId: oi >= 0 ? teams[oi].id : null,
+        oppName: oi >= 0 ? teams[oi].shortName : (r[6] as string),
+        home: (flags & 1) === 1,
+        neutral: (flags & 2) === 2,
+        pts: r[3] as number,
+        oppPts: r[4] as number,
+        winProb: wp >= 0 ? wp / 1000 : null,
+      };
+    }),
+    upcoming: up.map((r) => ({
+      date: iso(r[0] as number),
+      oppId: teams[r[1] as number].id,
+      home: ((r[2] as number) & 1) === 1,
+      neutral: ((r[2] as number) & 2) === 2,
+      winProb: (r[3] as number) / 1000,
+      line: r[4] === null ? null : (r[4] as number) / 10,
+    })),
+    history: hist.map((r) => ({ date: new Date((r[0] as number) * 86400000).toISOString(), power: (r[1] as number) / 10, rank: r[2] as number })),
+  };
+}
 
 const cache = new Map<LeagueId, Generated>();
 const inflight = new Map<LeagueId, Promise<void>>();

@@ -10,10 +10,15 @@ npm run dev        # app (uses the committed data snapshot)
 npm run build      # typecheck + production build
 npm run data       # refresh: fetch real results from ESPN, then re-solve ratings and season odds
 npm run data:prior # (rarely) refetch last season's results used as preseason priors
+npm test           # unit tests (Vitest)
 npm run backtest   # walk-forward backtest of the model and prior carry-over weights
+npm run backtest:record  # same, and append the result to data/tracking/backtest-history.json
 ```
 
 ## Views
+Team pages (click any team): rating history, grades, season outlook, upcoming games with win probabilities and a game
+log showing the model's pre-game probability for each result (upsets flagged).
+
 Simulator (matchup, What-If Lab, Line Evaluator, margin histogram, tale of the tape), Daily Slate, Power Rankings
 (table + efficiency matrix + team report grades), Lean Board (model vs posted lines) and Season Odds.
 App state is mirrored to the URL query string (`league`, `tab`, `a`, `b`, `venue`, `spread`, `total`).
@@ -57,6 +62,23 @@ NET/quadrants; conference tournaments have no byes; no First Four logic beyond s
 
 League data loads on demand (one chunk per league) so the basketball files (~2 MB each) are not in the initial bundle.
 
+## Forward tracking
+Every refresh locks in a prediction for each upcoming game (frozen at kickoff; a game is never predicted after it
+starts) and grades the finished ones on the next run, keeping only daily totals in `data/tracking/<league>.json`:
+accuracy, Brier score, log loss, margin error, calibration bins and, where a line was posted, model-vs-market error and
+against-the-spread picks. The Track Record tab shows it next to the latest walk-forward backtest. Honest numbers need
+a few weeks to accumulate.
+
+## Season rules
+- **NFL**: four division winners + three wild cards per conference; ties on wins broken by head-to-head, division
+  record (within a division), conference record, then a coin flip. Strength of victory/schedule and common-games
+  tiebreakers are not modelled; multi-team ties use pooled head-to-head instead of the official elimination steps.
+- **NBA**: top six by record (ties: division winner, head-to-head, conference record) then the 7-10 play-in with home
+  court for the higher seed.
+- **NCAAF**: conference titles by conference record, with a championship game between the top two in SEC, Big Ten, ACC,
+  Big 12, MAC, Mountain West, Sun Belt and CUSA (assumption: American and Pac-12 have none); the 12-team CFP takes the
+  five highest-ranked champions plus seven at-large.
+
 ## Preseason priors
 Last season's results (`data/raw/*-prior.json`) are solved with the same model. Each team is then shrunk toward
 `carry x last season's rating` (not the league mean) with ridge scaled by `1/(1-carry^2)`; as games accumulate the data
@@ -68,4 +90,4 @@ Carry-over was tuned on the same season it is evaluated on (one parameter per le
 ## Known limitations
 - Tempo/pace is an index inferred from game totals, not real plays or possessions.
 - No roster, transfer-portal or coaching-change information, so teams that changed a lot carry over too much.
-- Backtest samples are small (110 / 475 / 170 predictions per carry setting).
+- Backtest samples are small (110 / 475 / 170 predictions per carry setting); the live Track Record is the real test.

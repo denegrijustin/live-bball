@@ -3,16 +3,19 @@ import type { ActiveTab, LeagueId, ScheduledGame, TeamMetrics, VenueType, WhatIf
 import {
   ensureLeague,
   ensureLeverage,
+  ensureTeamDetail,
   findTeam,
   getConfig,
   getLeverage,
   getMeta,
   getSeason,
   getSlate,
+  getTeamDetail,
   getTracking,
   getTeams,
   isLeverageLoaded,
   isLoaded,
+  isTeamDetailLoaded,
   topTwoTeams,
 } from './data';
 import { isCbb } from './data/leaguesConfig';
@@ -22,7 +25,7 @@ import Footer from './components/layout/Footer';
 const SimulatorView = lazy(() => import('./components/simulator/SimulatorView'));
 const DailySlateView = lazy(() => import('./components/slate/DailySlateView'));
 const PowerRankingsView = lazy(() => import('./components/rankings/PowerRankingsView'));
-const TeamReportModal = lazy(() => import('./components/rankings/TeamReportModal'));
+const TeamDetailView = lazy(() => import('./components/team/TeamDetailView'));
 const LeanBoardView = lazy(() => import('./components/leanboard/LeanBoardView'));
 const SeasonView = lazy(() => import('./components/season/SeasonView'));
 const LeverageView = lazy(() => import('./components/leverage/LeverageView'));
@@ -39,9 +42,10 @@ interface AppState {
   vegasTotal: number | null;
   runId: number;
   leverageTeamId: string | null;
+  detailTeamId: string | null;
 }
 
-const TABS: ActiveTab[] = ['SIMULATOR', 'SLATE', 'RANKINGS', 'LEAN_BOARD', 'SEASON', 'LEVERAGE', 'TRACKING'];
+const TABS: ActiveTab[] = ['SIMULATOR', 'SLATE', 'RANKINGS', 'LEAN_BOARD', 'SEASON', 'LEVERAGE', 'TRACKING', 'TEAM'];
 const VENUES: VenueType[] = ['TEAM_A_HOME', 'NEUTRAL', 'TEAM_B_HOME'];
 
 function defaultsFor(league: LeagueId): Pick<AppState, 'teamAId' | 'teamBId'> {
@@ -66,7 +70,7 @@ function readUrl(): AppState {
   // Team ids are validated against the league's data once it has loaded (see the effect in App).
   return {
     league,
-    tab: t && TABS.includes(t) && (t !== 'LEVERAGE' || isCbb(league)) ? t : 'SIMULATOR',
+    tab: t && TABS.includes(t) && (t !== 'LEVERAGE' || isCbb(league)) && (t !== 'TEAM' || q.get('team')) ? t : 'SIMULATOR',
     teamAId: q.get('a') ?? '',
     teamBId: q.get('b') ?? '',
     venue: v && VENUES.includes(v) ? v : 'TEAM_B_HOME',
@@ -75,12 +79,12 @@ function readUrl(): AppState {
     vegasTotal: num(q.get('total')),
     runId: 1,
     leverageTeamId: null,
+    detailTeamId: q.get('team'),
   };
 }
 
 export default function App() {
   const [s, setS] = useState<AppState>(readUrl);
-  const [reportTeam, setReportTeam] = useState<TeamMetrics | null>(null);
   const [, setLoadTick] = useState(0); // bumps when a league's data finishes loading
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -117,6 +121,16 @@ export default function App() {
     };
   }, [s.tab, s.league]);
 
+  // Per-team detail is a separate chunk, fetched when a team page is opened.
+  useEffect(() => {
+    if (s.tab !== 'TEAM') return;
+    let alive = true;
+    ensureTeamDetail(s.league).then(() => alive && setLoadTick((n) => n + 1));
+    return () => {
+      alive = false;
+    };
+  }, [s.tab, s.league]);
+
   // Once data is loaded, make sure the selected teams exist in this league (fresh load, bad URL, or league change).
   useEffect(() => {
     if (!ready) return;
@@ -137,19 +151,20 @@ export default function App() {
     if (s.teamAId) q.set('a', s.teamAId);
     if (s.teamBId) q.set('b', s.teamBId);
     q.set('venue', s.venue);
+    if (s.tab === 'TEAM' && s.detailTeamId) q.set('team', s.detailTeamId);
     if (s.vegasSpread !== null) q.set('spread', String(s.vegasSpread));
     if (s.vegasTotal !== null) q.set('total', String(s.vegasTotal));
     window.history.replaceState(null, '', `?${q.toString()}`);
-  }, [s.league, s.tab, s.teamAId, s.teamBId, s.venue, s.vegasSpread, s.vegasTotal]);
+  }, [s.league, s.tab, s.teamAId, s.teamBId, s.venue, s.vegasSpread, s.vegasTotal, s.detailTeamId]);
 
   const patch = useCallback((p: Partial<AppState>) => setS((prev) => ({ ...prev, ...p })), []);
 
   const changeLeague = (league: LeagueId) => {
     if (league === s.league) return;
-    setReportTeam(null);
     patch({
       league,
-      tab: s.tab === 'LEVERAGE' && !isCbb(league) ? 'SIMULATOR' : s.tab,
+      tab: s.tab === 'LEVERAGE' && !isCbb(league) ? 'SIMULATOR' : s.tab === 'TEAM' ? 'RANKINGS' : s.tab,
+      detailTeamId: null,
       leverageTeamId: null,
       teamAId: '',
       teamBId: '',
@@ -158,6 +173,25 @@ export default function App() {
       vegasSpread: null,
       vegasTotal: null,
     });
+  };
+
+  const openTeam = (t: TeamMetrics) => {
+    patch({ tab: 'TEAM', detailTeamId: t.id });
+    window.scrollTo({ top: 0 });
+  };
+
+  /** Team page -> Simulator with a specific matchup. */
+  const simulateMatchup = (awayId: string, homeId: string, neutral: boolean, homeSpread: number | null) => {
+    patch({
+      tab: 'SIMULATOR',
+      teamAId: awayId,
+      teamBId: homeId,
+      venue: neutral ? 'NEUTRAL' : 'TEAM_B_HOME',
+      adj: NEUTRAL_ADJUSTMENTS,
+      vegasSpread: homeSpread,
+      vegasTotal: null,
+    });
+    window.scrollTo({ top: 0 });
   };
 
   /** Daily Slate / Lean Board -> Simulator: load both teams, venue and the sportsbook lines. */
@@ -182,7 +216,7 @@ export default function App() {
   if (!ready || !teamA || !teamB || !meta) {
     return (
       <div className="min-h-screen">
-        <Navbar league={s.league} tab={s.tab} teams={[]} onLeague={changeLeague} onTab={(tab) => patch({ tab })} onPickTeam={setReportTeam} />
+        <Navbar league={s.league} tab={s.tab} teams={[]} onLeague={changeLeague} onTab={(tab) => patch({ tab })} onPickTeam={openTeam} />
         <main className="mx-auto max-w-7xl px-4 py-16 text-center text-slate-400">
           {loadError ? (
             <p>
@@ -207,7 +241,7 @@ export default function App() {
         teams={teams}
         onLeague={changeLeague}
         onTab={(tab) => patch({ tab })}
-        onPickTeam={setReportTeam}
+        onPickTeam={openTeam}
       />
       <main className="mx-auto max-w-7xl px-4 py-6">
         <Suspense fallback={<p className="animate-pulse py-16 text-center text-slate-400">Loading…</p>}>
@@ -249,7 +283,7 @@ export default function App() {
           />
         )}
         {s.tab === 'SLATE' && <DailySlateView league={config} games={games} teams={teams} onSimulate={simulateGame} />}
-        {s.tab === 'RANKINGS' && <PowerRankingsView league={config} teams={teams} onSelect={setReportTeam} />}
+        {s.tab === 'RANKINGS' && <PowerRankingsView league={config} teams={teams} onSelect={openTeam} />}
         {s.tab === 'LEAN_BOARD' && <LeanBoardView league={config} games={games} teams={teams} onSimulate={simulateGame} />}
         {s.tab === 'SEASON' && (
           <SeasonView
@@ -257,10 +291,31 @@ export default function App() {
             teams={teams}
             season={season}
             iterations={meta.seasonIterations}
-            onSelect={setReportTeam}
+            onSelect={openTeam}
             onLeverage={(t) => patch({ tab: 'LEVERAGE', leverageTeamId: t.id })}
           />
         )}
+        {s.tab === 'TEAM' && (() => {
+          const t = s.detailTeamId ? findTeam(s.league, s.detailTeamId) : undefined;
+          if (!t) return <p className="py-16 text-center text-slate-500">Team not found.</p>;
+          if (!isTeamDetailLoaded(s.league)) return <p className="animate-pulse py-16 text-center text-slate-400">Loading team…</p>;
+          return (
+            <TeamDetailView
+              league={config}
+              team={t}
+              allTeams={teams}
+              detail={getTeamDetail(s.league, t.id)}
+              season={season.find((p) => p.teamId === t.id)}
+              onBack={() => patch({ tab: 'RANKINGS' })}
+              onOpenTeam={(id) => {
+                patch({ detailTeamId: id });
+                window.scrollTo({ top: 0 });
+              }}
+              onSimulate={simulateMatchup}
+              onLeverage={(tm) => patch({ tab: 'LEVERAGE', leverageTeamId: tm.id })}
+            />
+          );
+        })()}
         {s.tab === 'TRACKING' && <TrackRecordView league={config} tracking={getTracking(s.league)} />}
         {s.tab === 'LEVERAGE' && isCbb(s.league) && !leverageReady && (
           <p className="animate-pulse py-16 text-center text-slate-400">Loading leverage…</p>
@@ -280,11 +335,6 @@ export default function App() {
         </Suspense>
       </main>
       <Footer meta={meta} />
-      {reportTeam && (
-        <Suspense fallback={null}>
-          <TeamReportModal team={reportTeam} allTeams={teams} onClose={() => setReportTeam(null)} />
-        </Suspense>
-      )}
     </div>
   );
 }

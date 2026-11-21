@@ -91,7 +91,7 @@ export default function Navbar({ league, tab, teams, onLeague, onTab, onPickTeam
             }}
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
-            placeholder={`Search ${league} teams…`}
+            placeholder="Search teams…"
             className="w-full rounded-lg border border-slate-800 bg-slate-900 py-1.5 pl-8 pr-2 text-sm placeholder:text-slate-600 focus:border-emerald-500 focus:outline-none"
           />
           {open && results.length > 0 && (

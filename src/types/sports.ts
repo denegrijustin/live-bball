@@ -1,7 +1,7 @@
 export type LeagueId = 'NFL' | 'NCAAF' | 'NBA' | 'NCAAM' | 'NCAAW';
 export type VenueType = 'TEAM_A_HOME' | 'NEUTRAL' | 'TEAM_B_HOME';
 export type LetterGrade = 'A+' | 'A' | 'A-' | 'B+' | 'B' | 'B-' | 'C+' | 'C' | 'C-' | 'D' | 'F';
-export type ActiveTab = 'SIMULATOR' | 'SLATE' | 'RANKINGS' | 'LEAN_BOARD' | 'SEASON' | 'LEVERAGE' | 'TRACKING';
+export type ActiveTab = 'SIMULATOR' | 'SLATE' | 'RANKINGS' | 'LEAN_BOARD' | 'SEASON' | 'LEVERAGE' | 'TRACKING' | 'TEAM';
 
 export interface LeagueConfig {
   id: LeagueId;
@@ -169,6 +169,38 @@ export interface DataMeta {
   priorTeams: number;
   /** College basketball: NCAA tournament selection model parameters. */
   tourney?: { iterations: number; autoBidConferences: number; atLargeSlots: number; fieldSize: number };
+}
+
+export interface GameLogEntry {
+  date: string;
+  oppId: string | null; // null when the opponent is outside the rated set (e.g. FCS)
+  oppName: string;
+  home: boolean;
+  neutral: boolean;
+  pts: number;
+  oppPts: number;
+  winProb: number | null; // model probability of winning, from ratings in force before the game
+}
+
+export interface UpcomingEntry {
+  date: string;
+  oppId: string;
+  home: boolean;
+  neutral: boolean;
+  winProb: number;
+  line: number | null; // sportsbook spread from this team's side (negative = favoured), when posted
+}
+
+export interface RatingPoint {
+  date: string;
+  power: number; // 0-100
+  rank: number;
+}
+
+export interface TeamDetail {
+  log: GameLogEntry[];
+  upcoming: UpcomingEntry[];
+  history: RatingPoint[];
 }
 
 /** Out-of-sample record of the model's real predictions (graded after each game finishes) plus the latest backtest. */

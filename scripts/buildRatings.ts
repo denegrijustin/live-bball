@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { solveRatings, type GameRow, type SolverResult } from '../src/engine/ratingSolver';
 import { simulateSeason, type RemainingGame, type SeasonTeamInput } from '../src/engine/seasonSim';
-import { NEUTRAL_ADJUSTMENTS, projectMatchup } from '../src/engine/mathModel';
+import { NEUTRAL_ADJUSTMENTS, normalCDF as normalCDFLocal, projectMatchup } from '../src/engine/mathModel';
 import { LEAGUES, isCbb } from '../src/data/leaguesConfig';
 import { blendLeverage, simulateTourney, type TourneyTeam } from '../src/engine/tourneySim';
 import {
@@ -422,6 +422,88 @@ function build(s: LeagueSettings) {
       bowlPct: round(odds[k].bowlPct),
       cfpPct: round(odds[k].cfpPct),
     }));
+  }
+
+  // ---- Team detail: weekly rating snapshots, game logs (with the pre-game model probability) and schedules ----
+  {
+    const firstT = rows.length ? Math.min(...rows.map((r) => r.t)) : asOf;
+    interface Snap {
+      t: number;
+      res: SolverResult;
+      power: Map<string, number>;
+      rank: Map<string, number>;
+    }
+    const mkSnap = (t: number, res: SolverResult): Snap => {
+      const power = powerOf(res);
+      const rank = new Map([...power.entries()].sort((a, b) => b[1] - a[1]).map(([id], k) => [id, k + 1]));
+      return { t, res, power, rank };
+    };
+    // Snapshot 0 is the preseason rating (prior only); then one per week; the last is today's ratings.
+    const snaps: Snap[] = [mkSnap(firstT - DAY, solveRatings(ids.length, [], opts(firstT - DAY)))];
+    for (let t = firstT + 7 * DAY; t < asOf; t += 7 * DAY) {
+      snaps.push(mkSnap(t, solveRatings(ids.length, rows.filter((r) => r.t < t), opts(t))));
+    }
+    snaps.push(mkSnap(asOf, now));
+    // The snapshot in force at a game's start only contains games played before it.
+    const snapFor = (t: number): Snap => {
+      let pick = snaps[0];
+      for (const sn of snaps) if (sn.t <= t) pick = sn;
+      return pick;
+    };
+    const preGameProb = (hId: string, aId: string, neutral: boolean, t: number): number | null => {
+      if (!inU.has(hId) || !inU.has(aId)) return null;
+      const sn = snapFor(t);
+      const h = index.get(hId) as number;
+      const a = index.get(aId) as number;
+      const pm = sn.res.off[h] + sn.res.def[a] - sn.res.off[a] - sn.res.def[h] + (neutral ? 0 : sn.res.hfa);
+      return normalCDFLocal(pm / config.marginStdDev);
+    };
+
+    // Compact tuples per team index (see expandTeamDetail in src/data/index.ts):
+    //  log:      [epochMin, oppIdx (-1 = outside the rated set), flags(home=1|neutral=2), pts, oppPts, preGameWinProb*1000 (-1 = n/a), oppName?]
+    //  upcoming: [epochMin, oppIdx, flags, winProb*1000, teamSpread*10 | null]   (next 12 games with a rated opponent)
+    //  history:  [epochDays, power*10, rank]
+    const detail: [unknown[], unknown[], unknown[]][] = teams.map(() => [[], [], []]);
+    const ti = (rawId: string) => tIndex.get(`${s.id.toLowerCase()}-${rawId}`);
+    for (const r of raw.results) {
+      const [d, h, a, hs, as, neutral] = r;
+      const t = Date.parse(d);
+      const p = preGameProb(h, a, neutral === 1, t);
+      for (const side of [0, 1]) {
+        const mine = side === 0 ? h : a;
+        const theirs = side === 0 ? a : h;
+        const mi = ti(mine);
+        if (mi === undefined) continue;
+        const oi = ti(theirs);
+        const flags = (side === 0 ? 1 : 0) | (neutral === 1 ? 2 : 0);
+        const wp = p === null ? -1 : Math.round((side === 0 ? p : 1 - p) * 1000);
+        const row: unknown[] = [Math.round(t / 60000), oi ?? -1, flags, side === 0 ? hs : as, side === 0 ? as : hs, wp];
+        if (oi === undefined) row.push(raw.teams[theirs]?.short ?? 'Unrated');
+        detail[mi][0].push(row);
+      }
+    }
+    for (const u of raw.upcoming) {
+      const [, d, h, a, neutral, spread] = u;
+      if (!inU.has(h) || !inU.has(a)) continue;
+      const hi = ti(h) as number;
+      const ai = ti(a) as number;
+      const ph = prob(hi, ai, neutral === 1);
+      const t = Date.parse(d);
+      for (const side of [0, 1]) {
+        const mi = side === 0 ? hi : ai;
+        if (detail[mi][1].length >= 12) continue;
+        const flags = (side === 0 ? 1 : 0) | (neutral === 1 ? 2 : 0);
+        const sp = spread === null ? null : Math.round((side === 0 ? spread : -spread) * 10);
+        detail[mi][1].push([Math.round(t / 60000), side === 0 ? ai : hi, flags, Math.round((side === 0 ? ph : 1 - ph) * 1000), sp]);
+      }
+    }
+    teams.forEach((t, k) => {
+      const rid = rawIdOf.get(t.id) as string;
+      detail[k][2] = snaps.map((sn) => [Math.round(sn.t / DAY), Math.round((sn.power.get(rid) as number) * 10), sn.rank.get(rid) as number]);
+      (detail[k][0] as number[][]).sort((x, y) => x[0] - y[0]);
+      (detail[k][1] as number[][]).sort((x, y) => x[0] - y[0]);
+    });
+    writeFileSync(join(ROOT, `src/data/generated/${s.file}-teams.json`), JSON.stringify(detail));
   }
 
   // ---- Forward tracking: grade earlier predictions, then lock in predictions for upcoming games ----
