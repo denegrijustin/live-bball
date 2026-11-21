@@ -34,6 +34,9 @@ export interface PriorInfo {
   offDev: Float64Array; // offence minus league mean points
   defDev: Float64Array; // defence (points allowed) minus league mean points
   overall: Float64Array; // stage 2 rating (points)
+  /** League constants fitted on last season (home advantage in points, margin SD). Used as the priors for this season. */
+  hfa?: number;
+  marginSd?: number;
 }
 
 export interface SolverOptions {
@@ -239,8 +242,10 @@ export function solveRatings(nTeams: number, games: GameRow[], o: SolverOptions)
   }
 
   // ---- Stage 2: IRLS logistic regression on win/loss, started from the stage-1a margins ----
-  const sigma = marginSd / 1.702; // logit(p) = margin / sigma  <=>  p = Phi(margin / marginSd) (probit ~ logit)
+  // logit(p) = margin / sigma  <=>  p = Phi(margin / marginSd) (probit ~ logit). Uses the stable prior noise SD rather
+  // than the in-sample residual SD, which early in a season is inflated by lopsided schedules.
   const sigma0 = o.noiseSd / 1.702;
+  const sigma = sigma0;
   const lamG = (sigma0 * sigma0) / (o.hfaPriorSd * o.hfaPriorSd);
   const nl = n + 1;
   const beta = new Float64Array(nl);

@@ -1,7 +1,7 @@
-export type LeagueId = 'NFL' | 'NCAAF' | 'NBA';
+export type LeagueId = 'NFL' | 'NCAAF' | 'NBA' | 'NCAAM' | 'NCAAW';
 export type VenueType = 'TEAM_A_HOME' | 'NEUTRAL' | 'TEAM_B_HOME';
 export type LetterGrade = 'A+' | 'A' | 'A-' | 'B+' | 'B' | 'B-' | 'C+' | 'C' | 'C-' | 'D' | 'F';
-export type ActiveTab = 'SIMULATOR' | 'SLATE' | 'RANKINGS' | 'LEAN_BOARD' | 'SEASON';
+export type ActiveTab = 'SIMULATOR' | 'SLATE' | 'RANKINGS' | 'LEAN_BOARD' | 'SEASON' | 'LEVERAGE';
 
 export interface LeagueConfig {
   id: LeagueId;
@@ -126,6 +126,31 @@ export interface SeasonProjection {
   topSixPct: number;
   bowlPct: number;
   cfpPct: number;
+  /** College basketball only: NCAA tournament field odds from the selection model (percent). */
+  bidPct?: number;
+  autoBidPct?: number;
+  atLargePct?: number;
+  avgSeed?: number | null; // average seed line when in the field
+}
+
+/**
+ * Leverage of one remaining game for one team's NCAA tournament bid: the bid probability conditional on that team
+ * winning vs losing the game, from the same season simulation (outcomes are independent draws, so the difference
+ * is the causal effect of the game).
+ */
+export interface LeverageRow {
+  gameId: string;
+  teamId: string;
+  oppId: string;
+  date: string;
+  home: boolean;
+  neutral: boolean;
+  winProb: number; // 0..1 chance this team wins the game
+  bidBase: number; // percent
+  bidIfWin: number;
+  bidIfLoss: number;
+  nWin: number; // simulations behind each conditional (small values are noisy)
+  nLoss: number;
 }
 
 export interface DataMeta {
@@ -140,6 +165,8 @@ export interface DataMeta {
   priorSeason: string | null;
   priorCarry: number;
   priorTeams: number;
+  /** College basketball: NCAA tournament selection model parameters. */
+  tourney?: { iterations: number; autoBidConferences: number; atLargeSlots: number; fieldSize: number };
 }
 
 export type GradeKey = 'OFFENSE' | 'DEFENSE' | 'PACE' | 'SOS' | 'CONSISTENCY' | 'POWER';

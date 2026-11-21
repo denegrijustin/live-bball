@@ -44,6 +44,35 @@ export const LEAGUES: Record<LeagueId, LeagueConfig> = {
     unitLabel: 'Points/100 Poss',
     paceLabel: 'Est. Poss./48m',
   },
+  NCAAM: {
+    id: 'NCAAM',
+    name: 'NCAAM',
+    fullName: "NCAA Men's Basketball (Division I)",
+    avgEfficiency: 72.0,
+    avgPace: 67.5,
+    homeAdvantagePts: 3.4,
+    marginStdDev: 11.5,
+    totalStdDev: 15.0,
+    minRealisticScore: 40,
+    unitLabel: 'Points/Game',
+    paceLabel: 'Est. Poss./40m',
+  },
+  NCAAW: {
+    id: 'NCAAW',
+    name: 'NCAAW',
+    fullName: "NCAA Women's Basketball (Division I)",
+    avgEfficiency: 66.0,
+    avgPace: 66.0,
+    homeAdvantagePts: 3.4,
+    marginStdDev: 12.5,
+    totalStdDev: 14.0,
+    minRealisticScore: 30,
+    unitLabel: 'Points/Game',
+    paceLabel: 'Est. Poss./40m',
+  },
 };
 
-export const LEAGUE_IDS: LeagueId[] = ['NFL', 'NCAAF', 'NBA'];
+export const LEAGUE_IDS: LeagueId[] = ['NFL', 'NCAAF', 'NBA', 'NCAAM', 'NCAAW'];
+
+/** College basketball leagues have an NCAA tournament selection model and leverage view. */
+export const isCbb = (l: LeagueId): boolean => l === 'NCAAM' || l === 'NCAAW';

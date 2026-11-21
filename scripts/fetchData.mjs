@@ -3,7 +3,7 @@
  * Pulls completed results, the remaining schedule and (when posted) sportsbook lines from ESPN's public
  * scoreboard JSON and writes compact snapshots to data/raw/{nfl,ncaaf,nba}.json.
  *
- * Usage: node scripts/fetchData.mjs [nfl|ncaaf|nba ...] [--prior]
+ * Usage: node scripts/fetchData.mjs [nfl|ncaaf|nba|ncaam|ncaaw ...] [--prior]
  *   --prior  fetch last season's results instead (used as preseason priors)
  * Uses curl (honours the proxy/CA settings of the environment) so it has no npm dependencies.
  */
@@ -92,6 +92,7 @@ function parseEvent(e) {
     seasonType: e.season?.type ?? null,
     week: e.week?.number ?? null,
     neutral: Boolean(c.neutralSite),
+    conf: Boolean(c.conferenceCompetition),
     home: { team: home.team, score: home.score === undefined ? null : Number(home.score) },
     away: { team: away.team, score: away.score === undefined ? null : Number(away.score) },
     spread,
@@ -142,6 +143,23 @@ async function collect(league, prior = false) {
     const end = Date.UTC(year + 1, 3, 20);
     for (let t = start; t <= end; t += 86400000) days.push(new Date(t).toISOString().slice(0, 10).replaceAll('-', ''));
     await pool(days, 8, async (d) => add((await getJson(`${BASE}/basketball/nba/scoreboard?dates=${d}&limit=100`)).events));
+  } else if (league === 'ncaam' || league === 'ncaaw') {
+    const sport = league === 'ncaam' ? 'mens-college-basketball' : 'womens-college-basketball';
+    const confs = await getJson(`${BASE}/basketball/${sport}/scoreboard/conferences`);
+    const names = {};
+    const d1 = new Set();
+    for (const c of confs.conferences ?? []) {
+      names[c.groupId] = c.shortName ?? c.name;
+      if (c.parentGroupId === '50') d1.add(c.groupId);
+    }
+    extra = { confNames: names, fbsConfIds: [...d1] }; // 'fbs' flag = Division I membership for college basketball
+    const days = [];
+    const start = Date.UTC(year, 10, 1);
+    const end = Date.UTC(year + 1, 3, 8);
+    for (let t = start; t <= end; t += 86400000) days.push(new Date(t).toISOString().slice(0, 10).replaceAll('-', ''));
+    await pool(days, 8, async (d) =>
+      add((await getJson(`${BASE}/basketball/${sport}/scoreboard?dates=${d}&groups=50&limit=400`)).events),
+    );
   } else throw new Error(`unknown league ${league}`);
 
   // Drop placeholder fixtures (e.g. NBA Cup knockouts not yet drawn) and, for the NBA, non-regular-season games.
@@ -149,7 +167,7 @@ async function collect(league, prior = false) {
     (e) =>
       e.home.team.abbreviation !== 'TBD' &&
       e.away.team.abbreviation !== 'TBD' &&
-      (league === 'nba' ? e.seasonType === 2 : true),
+      (league === 'nfl' || league === 'ncaaf' ? true : e.seasonType === 2),
   );
   const teams = new Map();
   const noteTeam = (t) => {
@@ -190,9 +208,9 @@ async function collect(league, prior = false) {
     const hId = e.home.team.id;
     const aId = e.away.team.id;
     if (e.status === 'STATUS_FINAL' && e.home.score !== null && e.away.score !== null) {
-      results.push([e.date, hId, aId, e.home.score, e.away.score, e.neutral ? 1 : 0]);
+      results.push([e.date, hId, aId, e.home.score, e.away.score, e.neutral ? 1 : 0, e.conf ? 1 : 0]);
     } else if (['STATUS_SCHEDULED', 'STATUS_IN_PROGRESS', 'STATUS_HALFTIME', 'STATUS_END_PERIOD', 'STATUS_DELAYED'].includes(e.status)) {
-      upcoming.push([e.id, e.date, hId, aId, e.neutral ? 1 : 0, e.spread, e.total, e.week]);
+      upcoming.push([e.id, e.date, hId, aId, e.neutral ? 1 : 0, e.spread, e.total, e.week, e.conf ? 1 : 0]);
     }
   }
   results.sort((a, b) => a[0].localeCompare(b[0]));
@@ -214,7 +232,7 @@ async function collect(league, prior = false) {
 const args = process.argv.slice(2);
 const prior = args.includes('--prior');
 const names = args.filter((a) => !a.startsWith('--'));
-const wanted = names.length ? names : ['nfl', 'ncaaf', 'nba'];
+const wanted = names.length ? names : ['nfl', 'ncaaf', 'nba', 'ncaam', 'ncaaw'];
 await mkdir(join(ROOT, 'data/raw'), { recursive: true });
 for (const lg of wanted) {
   process.stdout.write(`fetching ${lg}${prior ? ' (prior season)' : ''}… `);

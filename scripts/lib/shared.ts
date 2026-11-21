@@ -29,8 +29,10 @@ export interface Raw {
   fetchedAt: string;
   seasonStartYear?: number;
   teams: Record<string, RawTeam>;
-  results: [string, string, string, number, number, number][];
-  upcoming: [string, string, string, string, number, number | null, number | null, number | null][];
+  /** [date, homeId, awayId, homeScore, awayScore, neutral, conferenceGame?] */
+  results: [string, string, string, number, number, number, number?][];
+  /** [eventId, date, homeId, awayId, neutral, spread, total, week, conferenceGame?] */
+  upcoming: [string, string, string, string, number, number | null, number | null, number | null, number?][];
 }
 
 export interface LeagueSettings {
@@ -51,6 +53,8 @@ export const SETTINGS: LeagueSettings[] = [
   { id: 'NFL', file: 'nfl', halfLifeDays: 75, ridgeMargin: 4.5, ridgePoints: 8, ridgeLogit: 1.6, marginCap: 21, slateDays: 8, hfaPriorSd: 1.0, carry: 0.65 },
   { id: 'NCAAF', file: 'ncaaf', halfLifeDays: 70, ridgeMargin: 2.0, ridgePoints: 3.5, ridgeLogit: 0.5, marginCap: 35, slateDays: 7, hfaPriorSd: 1.2, carry: 0.65 },
   { id: 'NBA', file: 'nba', halfLifeDays: 60, ridgeMargin: 7, ridgePoints: 10, ridgeLogit: 2.4, marginCap: 25, slateDays: 3, hfaPriorSd: 1.0, carry: 0.7 },
+  { id: 'NCAAM', file: 'ncaam', halfLifeDays: 50, ridgeMargin: 1.5, ridgePoints: 4.5, ridgeLogit: 0.5, marginCap: 30, slateDays: 2, hfaPriorSd: 0.25, carry: 0.65 },
+  { id: 'NCAAW', file: 'ncaaw', halfLifeDays: 50, ridgeMargin: 1.5, ridgePoints: 4.5, ridgeLogit: 0.5, marginCap: 35, slateDays: 2, hfaPriorSd: 0.25, carry: 0.75 },
 ];
 
 export function loadRaw(file: string, prior = false): Raw | null {
@@ -58,10 +62,10 @@ export function loadRaw(file: string, prior = false): Raw | null {
   return existsSync(path) ? (JSON.parse(readFileSync(path, 'utf8')) as Raw) : null;
 }
 
-/** Rated universe: every NFL/NBA team; for NCAAF only FBS. */
+/** Rated universe: every NFL/NBA team; FBS for NCAAF; Division I for college basketball. */
 export function universeOf(s: LeagueSettings, raw: Raw): string[] {
   return Object.keys(raw.teams).filter(
-    (id) => (s.id === 'NCAAF' ? raw.teams[id].fbs : true) && raw.teams[id].abbr !== 'TBD',
+    (id) => (s.id === 'NFL' || s.id === 'NBA' ? true : raw.teams[id].fbs) && raw.teams[id].abbr !== 'TBD',
   );
 }
 
@@ -87,9 +91,10 @@ export function solverOpts(s: LeagueSettings, asOf: number, prior?: PriorInfo, h
     ridgePoints: s.ridgePoints,
     ridgeLogit: s.ridgeLogit,
     marginCap: s.marginCap,
-    hfaPrior: base.homeAdvantagePts,
+    // Last season's fitted constants beat hand-set ones, especially early in a season.
+    hfaPrior: prior?.hfa ?? base.homeAdvantagePts,
     hfaPriorSd: s.hfaPriorSd,
-    noiseSd: base.marginStdDev,
+    noiseSd: prior?.marginSd ?? base.marginStdDev,
     prior,
   };
 }
@@ -97,6 +102,7 @@ export function solverOpts(s: LeagueSettings, asOf: number, prior?: PriorInfo, h
 export interface PriorSolve {
   ids: string[];
   result: SolverResult;
+  games: number;
 }
 
 /** Solves last season's ratings once (late-season games weighted only mildly more than early ones). */
@@ -105,7 +111,7 @@ export function solvePriorSeason(s: LeagueSettings, priorRaw: Raw): PriorSolve {
   const index = new Map(ids.map((id, i) => [id, i]));
   const rows = toRows(priorRaw, index);
   const asOf = Math.max(...rows.map((r) => r.t));
-  return { ids, result: solveRatings(ids.length, rows, solverOpts(s, asOf, undefined, s.halfLifeDays * 3)) };
+  return { ids, games: rows.length, result: solveRatings(ids.length, rows, solverOpts(s, asOf, undefined, s.halfLifeDays * 3)) };
 }
 
 /** Aligns a solved prior season to this season's team indices for the given carry-over. */
@@ -120,6 +126,8 @@ export function priorFor(curIds: string[], prior: PriorSolve | null, carry: numb
     offDev: new Float64Array(n),
     defDev: new Float64Array(n),
     overall: new Float64Array(n),
+    hfa: prior.result.hfa,
+    marginSd: prior.result.marginSd,
   };
   const r = prior.result;
   curIds.forEach((id, i) => {
