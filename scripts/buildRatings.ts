@@ -4,7 +4,7 @@ import { solveRatings, type GameRow, type SolverResult } from '../src/engine/rat
 import { simulateSeason, type RemainingGame, type SeasonTeamInput } from '../src/engine/seasonSim';
 import { NEUTRAL_ADJUSTMENTS, projectMatchup } from '../src/engine/mathModel';
 import { LEAGUES, isCbb } from '../src/data/leaguesConfig';
-import { simulateTourney, type TourneyTeam } from '../src/engine/tourneySim';
+import { blendLeverage, simulateTourney, type TourneyTeam } from '../src/engine/tourneySim';
 import type { DataMeta, LeagueConfig, LeverageRow, ScheduledGame, SeasonProjection, TeamMetrics } from '../src/types/sports';
 import {
   DAY,
@@ -301,16 +301,18 @@ function build(s: LeagueSettings) {
     const MIN_N = 40; // need at least this many (effective) simulations behind each side of a game
     games.forEach((x, gi) => {
       const st = res.games[gi];
-      // Conference games also move conference seeding (-> automatic bid), which only the split estimator sees; every
-      // other game uses the low-variance Rao-Blackwellised estimator.
-      const useSplit = x.g.conf;
-      const hW = useSplit ? st.homeBidIfWin : st.rbHomeBidIfWin;
-      const hL = useSplit ? st.homeBidIfLoss : st.rbHomeBidIfLoss;
-      const aW = useSplit ? st.awayBidIfWin : st.rbAwayBidIfWin;
-      const aL = useSplit ? st.awayBidIfLoss : st.rbAwayBidIfLoss;
+      // Heavy favourites: blend the low-variance counterfactual with the weighted estimate (weight by effective n).
+      // Conference games that are close to toss-ups use the split estimator, the only one that also sees the effect on
+      // conference seeding (-> automatic bid); lopsided conference games fall back to the blend.
+      const n = st.rbEffN;
+      const useSplit = x.g.conf && Math.min(st.nHomeWin, st.nAwayWin) >= 2000;
+      const hW = useSplit ? st.homeBidIfWin : blendLeverage(st.cfHomeBidIfWin, st.rbHomeBidIfWin, n);
+      const hL = useSplit ? st.homeBidIfLoss : blendLeverage(st.cfHomeBidIfLoss, st.rbHomeBidIfLoss, n);
+      const aW = useSplit ? st.awayBidIfWin : blendLeverage(st.cfAwayBidIfWin, st.rbAwayBidIfWin, n);
+      const aL = useSplit ? st.awayBidIfLoss : blendLeverage(st.cfAwayBidIfLoss, st.rbAwayBidIfLoss, n);
       const sides: [number, number, boolean, number | null, number | null, number, number][] = [
-        [x.g.home, x.g.away, true, hW, hL, useSplit ? st.nHomeWin : st.rbEffN, useSplit ? st.nAwayWin : st.rbEffN],
-        [x.g.away, x.g.home, false, aW, aL, useSplit ? st.nAwayWin : st.rbEffN, useSplit ? st.nHomeWin : st.rbEffN],
+        [x.g.home, x.g.away, true, hW, hL, TOURNEY_ITERS, TOURNEY_ITERS],
+        [x.g.away, x.g.home, false, aW, aL, TOURNEY_ITERS, TOURNEY_ITERS],
       ];
       for (const [ti, oi, home, ifW, ifL, nW, nL] of sides) {
         const base = res.teams[ti].bidPct;
@@ -327,15 +329,18 @@ function build(s: LeagueSettings) {
           bidBase: round(base),
           bidIfWin: round(ifW * 100),
           bidIfLoss: round(ifL * 100),
-          nWin: nW,
-          nLoss: nL,
+          nWin: home ? st.nHomeWin : st.nAwayWin,
+          nLoss: home ? st.nAwayWin : st.nHomeWin,
         });
       }
     });
     if (process.env.TOURNEY_CHECK) {
       // Compare split-by-outcome leverage with forced-outcome simulations for the biggest swings.
       const ranked = leverage.map((r) => ({ r, swing: r.bidIfWin - r.bidIfLoss })).sort((a, b) => b.swing - a.swing);
-      const picks = [...ranked.slice(0, 2), ...ranked.filter((x) => x.r.winProb > 0.4 && x.r.winProb < 0.6).slice(0, 2)];
+      const picks = [
+        ...ranked.filter((x) => x.r.winProb > 0.4 && x.r.winProb < 0.6).slice(0, 2),
+        ...ranked.filter((x) => x.r.winProb > 0.95 && x.r.bidBase > 30 && x.r.bidBase < 80).slice(0, 3),
+      ];
       for (const { r } of picks) {
         const gi = games.findIndex((x) => `${lg}-${x.eid}` === r.gameId);
         const ti = teams.findIndex((t) => t.id === r.teamId);
@@ -348,7 +353,7 @@ function build(s: LeagueSettings) {
             force: { game: gi, homeWins: isHome ? teamWins : !teamWins },
           }).teams[ti].bidPct;
         console.log(
-          `   CHECK ${teams[ti].abbreviation} v ${teams[teams.findIndex((t) => t.id === r.oppId)].abbreviation} p=${r.winProb}: base ${r.bidBase} | split W ${r.bidIfWin} L ${r.bidIfLoss} (nL=${r.nLoss}) | forced W ${run(true).toFixed(1)} L ${run(false).toFixed(1)}`,
+          `   CHECK ${teams[ti].abbreviation} v ${teams[teams.findIndex((t) => t.id === r.oppId)].abbreviation} p=${r.winProb}: base ${r.bidBase} | model W ${r.bidIfWin} L ${r.bidIfLoss} | forced W ${run(true).toFixed(1)} L ${run(false).toFixed(1)}`,
         );
       }
     }

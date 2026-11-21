@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Activity, BarChart3, CalendarDays, Search, Target, Trophy } from 'lucide-react';
+import { Activity, BarChart3, CalendarDays, Scale, Search, Target, Trophy } from 'lucide-react';
 import type { ActiveTab, LeagueId, TeamMetrics } from '../../types/sports';
-import { LEAGUE_IDS } from '../../data/leaguesConfig';
+import { LEAGUE_IDS, isCbb } from '../../data/leaguesConfig';
 import { TeamBadge } from '../common/ui';
 
 const TABS: { id: ActiveTab; label: string; icon: typeof Activity }[] = [
@@ -10,6 +10,7 @@ const TABS: { id: ActiveTab; label: string; icon: typeof Activity }[] = [
   { id: 'RANKINGS', label: 'Power Rankings', icon: BarChart3 },
   { id: 'LEAN_BOARD', label: 'Lean Board', icon: Target },
   { id: 'SEASON', label: 'Season Odds', icon: Trophy },
+  { id: 'LEVERAGE', label: 'Tourney Leverage', icon: Scale },
 ];
 
 interface Props {
@@ -65,7 +66,7 @@ export default function Navbar({ league, tab, teams, onLeague, onTab, onPickTeam
         </div>
 
         <nav className="order-last flex w-full gap-1 overflow-x-auto md:order-none md:w-auto">
-          {TABS.map(({ id, label, icon: Icon }) => (
+          {TABS.filter((t) => t.id !== 'LEVERAGE' || isCbb(league)).map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => onTab(id)}

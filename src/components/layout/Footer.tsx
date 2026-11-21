@@ -28,6 +28,14 @@ export default function Footer({ meta }: { meta: DataMeta }) {
           Single-game win probability and projected score are analytic (normal CDF, Abramowitz &amp; Stegun erf). Cover,
           push and over/under rates come from a seeded 10,000-run Box-Muller Monte Carlo on integer scores. Season odds
           run {meta.seasonIterations.toLocaleString()} simulations of the remaining schedule with simplified tiebreakers.
+          {meta.tourney && (
+            <>
+              College basketball tournament odds simulate the rest of the regular season ({meta.tourney.iterations.toLocaleString()}{' '}
+              runs, with a per-team strength shock because early-season ratings are uncertain), then conference
+              tournaments for {meta.tourney.autoBidConferences} automatic bids and {meta.tourney.atLargeSlots} at-large
+              spots chosen by a simplified selection score (not the committee's NET and quadrants).{' '}
+            </>
+          )}
           Sportsbook lines are shown only when posted. For analysis and education only; not betting advice.
         </p>
       </div>

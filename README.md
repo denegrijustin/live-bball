@@ -1,6 +1,7 @@
 # Versus Sports Simulator Replica
 
-Result-driven rating, projection and simulation app for NFL (32 teams), NCAAF (138 FBS teams) and NBA (30 teams).
+Result-driven rating, projection and simulation app for NFL (32 teams), NCAAF (138 FBS teams), NBA (30 teams) and
+men's / women's college basketball (NCAAM 365 and NCAAW 363 Division I teams).
 React 18 + TypeScript (strict) + Vite + Tailwind + Recharts.
 
 ```bash
@@ -40,10 +41,26 @@ Sportsbook lines appear only where ESPN has posted them (NBA lines are often mis
   (random on equal wins). NFL: division winners + 3 wild cards per conference; NBA: top 6 + play-in; NCAAF:
   top-12 by simulated record then rating (no conference championships) and bowl eligibility.
 
+## NCAA tournament and game leverage (NCAAM / NCAAW)
+`src/engine/tourneySim.ts` simulates the rest of the regular season 20,000 times with a per-team strength shock
+(early-season ratings are uncertain; shocks shrink with games played), runs each conference's tournament (top 8 by
+conference record, single elimination) for automatic bids, then fills the remaining at-large spots by a selection score
+of `rating + lambda x (wins above expectation) + committee noise`. Output: bid %, automatic vs at-large %, average seed.
+
+**Leverage** = P(bid | team wins a game) - P(bid | team loses it), per team per remaining game. Estimators (see the file
+header): a low-variance counterfactual (forced-outcome equivalent), a Rao-Blackwellised estimator that also reflects what
+a result says about a team's strength, and a split-by-outcome estimator for close conference games (which also sees
+conference seeding). They are blended by effective sample size and were validated against forced-outcome simulations
+(`TOURNEY_CHECK=1 npx tsx scripts/buildRatings.ts ncaam`). Swings run about 1.5x a forced "pretend it won" calculation
+because a result also revises belief about the team. Simplifications: the committee is a score threshold, not
+NET/quadrants; conference tournaments have no byes; no First Four logic beyond seed lines.
+
+League data loads on demand (one chunk per league) so the basketball files (~2 MB each) are not in the initial bundle.
+
 ## Preseason priors
 Last season's results (`data/raw/*-prior.json`) are solved with the same model. Each team is then shrunk toward
 `carry x last season's rating` (not the league mean) with ridge scaled by `1/(1-carry^2)`; as games accumulate the data
-term dominates, so the prior fades on its own. `carry` is NFL 0.65, NCAAF 0.65, NBA 0.7, picked from the plateau of
+term dominates, so the prior fades on its own. `carry` is NFL 0.65, NCAAF 0.65, NBA 0.7, NCAAM 0.65, NCAAW 0.75, picked from the plateau of
 `npm run backtest` (the curve is flat above ~0.65). Walk-forward results over 5 cutoffs this season, carry 0 -> chosen:
 winner accuracy 56% -> ~64% NFL, 65% -> ~69% NCAAF, 65% -> ~70% NBA, with better Brier and log loss in all three.
 Carry-over was tuned on the same season it is evaluated on (one parameter per league), so expect a little optimism.

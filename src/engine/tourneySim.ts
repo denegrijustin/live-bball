@@ -72,6 +72,12 @@ export interface GameLeverageStat {
   rbAwayBidIfWin: number | null;
   rbAwayBidIfLoss: number | null;
   rbEffN: number; // effective sample size of the less-likely outcome's weights
+  // Unweighted counterfactual (forced-outcome equivalent): every simulation used for both outcomes. Lowest variance,
+  // but excludes what the result says about team strength and conference-seeding effects.
+  cfHomeBidIfWin: number;
+  cfHomeBidIfLoss: number;
+  cfAwayBidIfWin: number;
+  cfAwayBidIfLoss: number;
 }
 
 export interface TourneyResult {
@@ -79,6 +85,17 @@ export interface TourneyResult {
   games: GameLeverageStat[];
   autoBidConferences: string[];
   atLargeSlots: number;
+}
+
+/**
+ * Blends the low-variance counterfactual estimate with the weighted (Rao-Blackwellised) estimate, which also reflects
+ * what a result reveals about team strength. The weighted estimate gets weight n / (n + k): near 1 for toss-ups,
+ * small for heavy favourites where its effective sample is tiny.
+ */
+export function blendLeverage(cf: number, rb: number | null, effN: number, k = 500): number {
+  if (rb === null) return cf;
+  const w = effN / (effN + k);
+  return cf + w * (rb - cf);
 }
 
 const SEED_ORDER = [1, 8, 4, 5, 2, 7, 3, 6]; // bracket slot order for a standard 8-team bracket
@@ -151,6 +168,10 @@ export function simulateTourney(teams: TourneyTeam[], games: TourneyGame[], o: T
   const rbHL = new Float64Array(G);
   const rbAW = new Float64Array(G);
   const rbAL = new Float64Array(G);
+  const cfHW = new Float64Array(G);
+  const cfHL = new Float64Array(G);
+  const cfAW = new Float64Array(G);
+  const cfAL = new Float64Array(G);
 
   const nm = new Float32Array(n * n).fill(Number.NaN);
   const neutralMargin = (i: number, j: number): number => {
@@ -264,10 +285,18 @@ export function simulateTourney(teams: TourneyTeam[], games: TourneyGame[], o: T
       const aL = homeWon[g] ? as : as - lam;
       const inCf = (team: number, sc: number): number =>
         isAuto[team] ? 1 : sc > (inField[team] ? cutOut : cutIn) ? 1 : 0;
-      rbHW[g] += pi * inCf(gm.home, hW);
-      rbHL[g] += (1 - pi) * inCf(gm.home, hL);
-      rbAW[g] += (1 - pi) * inCf(gm.away, aW);
-      rbAL[g] += pi * inCf(gm.away, aL);
+      const chW = inCf(gm.home, hW);
+      const chL = inCf(gm.home, hL);
+      const caW = inCf(gm.away, aW);
+      const caL = inCf(gm.away, aL);
+      rbHW[g] += pi * chW;
+      rbHL[g] += (1 - pi) * chL;
+      rbAW[g] += (1 - pi) * caW;
+      rbAL[g] += pi * caL;
+      cfHW[g] += chW;
+      cfHL[g] += chL;
+      cfAW[g] += caW;
+      cfAL[g] += caL;
     }
   }
 
@@ -297,6 +326,10 @@ export function simulateTourney(teams: TourneyTeam[], games: TourneyGame[], o: T
       rbAwayBidIfWin: ratio(rbAW[g], sumAway),
       rbAwayBidIfLoss: ratio(rbAL[g], sumHome),
       rbEffN: minTail,
+      cfHomeBidIfWin: cfHW[g] / N,
+      cfHomeBidIfLoss: cfHL[g] / N,
+      cfAwayBidIfWin: cfAW[g] / N,
+      cfAwayBidIfLoss: cfAL[g] / N,
     };
   });
   return {

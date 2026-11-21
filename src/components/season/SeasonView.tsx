@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { LeagueConfig, SeasonProjection, TeamMetrics } from '../../types/sports';
+import { isCbb } from '../../data/leaguesConfig';
 import { TeamBadge } from '../common/ui';
 
 interface Props {
@@ -8,6 +9,8 @@ interface Props {
   season: SeasonProjection[];
   iterations: number;
   onSelect: (t: TeamMetrics) => void;
+  /** College basketball: open the leverage view for a team. */
+  onLeverage?: (t: TeamMetrics) => void;
 }
 
 interface Col {
@@ -29,6 +32,12 @@ function columnsFor(league: LeagueConfig['id']): Col[] {
       { key: 'topSixPct', label: 'Top 6', title: 'Finishes top six in the conference (no play-in)' },
       { key: 'topSeedPct', label: '#1 Seed', title: 'Earns the conference #1 seed' },
     ];
+  if (isCbb(league))
+    return [
+      { key: 'bidPct', label: 'Tourney Bid', title: 'Makes the 68-team NCAA tournament field' },
+      { key: 'autoBidPct', label: 'Auto Bid', title: 'Wins its conference tournament' },
+      { key: 'atLargePct', label: 'At-Large', title: 'Selected at-large' },
+    ];
   return [
     { key: 'cfpPct', label: 'CFP Top 12', title: 'Ranks top 12 by simulated record, then rating (simplified)' },
     { key: 'bowlPct', label: 'Bowl Eligible', title: 'Finishes with 6+ wins' },
@@ -49,7 +58,8 @@ function PctCell({ value }: { value: number }) {
   );
 }
 
-export default function SeasonView({ league, teams, season, iterations, onSelect }: Props) {
+export default function SeasonView({ league, teams, season, iterations, onSelect, onLeverage }: Props) {
+  const cbb = isCbb(league.id);
   const cols = columnsFor(league.id);
   const [sortKey, setSortKey] = useState<keyof SeasonProjection>(cols[0].key);
   const [conf, setConf] = useState('ALL');
@@ -65,7 +75,9 @@ export default function SeasonView({ league, teams, season, iterations, onSelect
       const t = byId.get(p.teamId);
       return t && (conf === 'ALL' || t.conference === conf || t.division === conf);
     });
-    return [...list].sort((a, b) => (b[sortKey] as number) - (a[sortKey] as number) || b.avgWins - a.avgWins);
+    return [...list].sort(
+      (a, b) => ((b[sortKey] as number | undefined) ?? 0) - ((a[sortKey] as number | undefined) ?? 0) || b.avgWins - a.avgWins,
+    );
   }, [season, byId, conf, sortKey]);
 
   const remaining = season.reduce((m, p) => Math.max(m, p.gamesRemaining), 0);
@@ -73,7 +85,7 @@ export default function SeasonView({ league, teams, season, iterations, onSelect
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="mr-2 text-lg font-extrabold">{league.name} Season Odds</h2>
+        <h2 className="mr-2 text-lg font-extrabold">{cbb ? `${league.name} NCAA Tournament Odds` : `${league.name} Season Odds`}</h2>
         <select
           value={conf}
           onChange={(e) => setConf(e.target.value)}
@@ -110,6 +122,7 @@ export default function SeasonView({ league, teams, season, iterations, onSelect
                   </button>
                 </th>
               ))}
+              {cbb && <th className="px-2 py-2 text-right" title="Average seed line when in the field">Avg Seed</th>}
             </tr>
           </thead>
           <tbody>
@@ -119,7 +132,7 @@ export default function SeasonView({ league, teams, season, iterations, onSelect
               return (
                 <tr
                   key={p.teamId}
-                  onClick={() => onSelect(t)}
+                  onClick={() => (cbb && onLeverage ? onLeverage(t) : onSelect(t))}
                   className="cursor-pointer border-b border-slate-800/60 hover:bg-slate-800/40"
                 >
                   <td className="px-3 py-2">
@@ -138,9 +151,12 @@ export default function SeasonView({ league, teams, season, iterations, onSelect
                   </td>
                   {cols.map((c) => (
                     <td key={c.key} className="px-2 py-2">
-                      <PctCell value={p[c.key] as number} />
+                      <PctCell value={((p[c.key] as number | undefined) ?? 0)} />
                     </td>
                   ))}
+                  {cbb && (
+                    <td className="num px-2 py-2 text-right">{p.avgSeed ? p.avgSeed.toFixed(1) : '—'}</td>
+                  )}
                 </tr>
               );
             })}
@@ -153,6 +169,8 @@ export default function SeasonView({ league, teams, season, iterations, onSelect
           ' The bracket takes the four division winners plus three wild cards per conference; ties on wins are broken at random (no head-to-head or common-opponent tiebreakers).'}
         {league.id === 'NBA' &&
           ' Top six per conference qualify directly; seeds 7–10 play the 7v8 / 9v10 play-in. Ties on wins are broken at random.'}
+        {cbb &&
+          ' Each team’s simulated season runs through conference tournaments (top 8 by conference record, single elimination) for automatic bids, then at-large spots go to the best selection scores (rating plus wins above expectation, with committee noise). Click a team to see how each remaining game moves its bid.'}
         {league.id === 'NCAAF' &&
           ' CFP odds are simplified: no conference championship games or committee judgement, just simulated record then rating. Only games between FBS teams are simulated.'}
       </p>
