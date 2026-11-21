@@ -399,7 +399,28 @@ function build(s: LeagueSettings) {
     seasonIterations: isCbb(s.id) ? TOURNEY_ITERS : SEASON_ITERS,
     tourney: tourneyMeta,
   };
-  writeFileSync(join(ROOT, `src/data/generated/${s.file}.json`), JSON.stringify({ meta, config, teams, slate, season, leverage }));
+  writeFileSync(join(ROOT, `src/data/generated/${s.file}.json`), JSON.stringify({ meta, config, teams, slate, season }));
+  // Leverage is large and only needed on its own tab, so it lives in a separate lazily-loaded file as integer tuples
+  // (team references are indices into `teams`; see expandLeverage in src/data/index.ts):
+  // [eventId, teamIdx, oppIdx, epochMinutes, flags(home=1|neutral=2), winProb*1000, base*10, ifWin*10, ifLoss*10, nWin, nLoss]
+  if (isCbb(s.id)) {
+    const idx = new Map(teams.map((t, k) => [t.id, k]));
+    const lg = s.id.toLowerCase();
+    const tuples = leverage.map((r) => [
+      Number(r.gameId.slice(lg.length + 1)),
+      idx.get(r.teamId),
+      idx.get(r.oppId),
+      Math.round(Date.parse(r.date) / 60000),
+      (r.home ? 1 : 0) | (r.neutral ? 2 : 0),
+      Math.round(r.winProb * 1000),
+      Math.round(r.bidBase * 10),
+      Math.round(r.bidIfWin * 10),
+      Math.round(r.bidIfLoss * 10),
+      r.nWin,
+      r.nLoss,
+    ]);
+    writeFileSync(join(ROOT, `src/data/generated/${s.file}-leverage.json`), JSON.stringify(tuples));
+  }
 
   // ---- Diagnostics ----
   const top = [...teams].sort((a, b) => b.powerRating - a.powerRating).slice(0, 6);

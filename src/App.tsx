@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ActiveTab, LeagueId, ScheduledGame, TeamMetrics, VenueType, WhatIfAdjustments } from './types/sports';
 import {
   ensureLeague,
+  ensureLeverage,
   findTeam,
   getConfig,
   getLeverage,
@@ -9,6 +10,7 @@ import {
   getSeason,
   getSlate,
   getTeams,
+  isLeverageLoaded,
   isLoaded,
   topTwoTeams,
 } from './data';
@@ -16,13 +18,13 @@ import { isCbb } from './data/leaguesConfig';
 import { NEUTRAL_ADJUSTMENTS } from './engine/mathModel';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
-import SimulatorView from './components/simulator/SimulatorView';
-import DailySlateView from './components/slate/DailySlateView';
-import PowerRankingsView from './components/rankings/PowerRankingsView';
-import TeamReportModal from './components/rankings/TeamReportModal';
-import LeanBoardView from './components/leanboard/LeanBoardView';
-import SeasonView from './components/season/SeasonView';
-import LeverageView from './components/leverage/LeverageView';
+const SimulatorView = lazy(() => import('./components/simulator/SimulatorView'));
+const DailySlateView = lazy(() => import('./components/slate/DailySlateView'));
+const PowerRankingsView = lazy(() => import('./components/rankings/PowerRankingsView'));
+const TeamReportModal = lazy(() => import('./components/rankings/TeamReportModal'));
+const LeanBoardView = lazy(() => import('./components/leanboard/LeanBoardView'));
+const SeasonView = lazy(() => import('./components/season/SeasonView'));
+const LeverageView = lazy(() => import('./components/leverage/LeverageView'));
 
 interface AppState {
   league: LeagueId;
@@ -85,7 +87,8 @@ export default function App() {
   const teams = useMemo(() => getTeams(s.league), [s.league, ready]); // eslint-disable-line react-hooks/exhaustive-deps
   const games = useMemo(() => getSlate(s.league), [s.league, ready]); // eslint-disable-line react-hooks/exhaustive-deps
   const season = useMemo(() => getSeason(s.league), [s.league, ready]); // eslint-disable-line react-hooks/exhaustive-deps
-  const leverage = useMemo(() => getLeverage(s.league), [s.league, ready]); // eslint-disable-line react-hooks/exhaustive-deps
+  const leverageReady = isLeverageLoaded(s.league);
+  const leverage = useMemo(() => getLeverage(s.league), [s.league, leverageReady]); // eslint-disable-line react-hooks/exhaustive-deps
   const meta = getMeta(s.league);
   const teamA = findTeam(s.league, s.teamAId);
   const teamB = findTeam(s.league, s.teamBId);
@@ -101,6 +104,16 @@ export default function App() {
       alive = false;
     };
   }, [s.league]);
+
+  // The leverage table is a separate chunk, fetched only when the Leverage tab is opened.
+  useEffect(() => {
+    if (s.tab !== 'LEVERAGE' || !isCbb(s.league)) return;
+    let alive = true;
+    ensureLeverage(s.league).then(() => alive && setLoadTick((n) => n + 1));
+    return () => {
+      alive = false;
+    };
+  }, [s.tab, s.league]);
 
   // Once data is loaded, make sure the selected teams exist in this league (fresh load, bad URL, or league change).
   useEffect(() => {
@@ -195,6 +208,7 @@ export default function App() {
         onPickTeam={setReportTeam}
       />
       <main className="mx-auto max-w-7xl px-4 py-6">
+        <Suspense fallback={<p className="animate-pulse py-16 text-center text-slate-400">Loading…</p>}>
         {s.tab === 'SIMULATOR' && (
           <SimulatorView
             league={config}
@@ -245,7 +259,10 @@ export default function App() {
             onLeverage={(t) => patch({ tab: 'LEVERAGE', leverageTeamId: t.id })}
           />
         )}
-        {s.tab === 'LEVERAGE' && isCbb(s.league) && (
+        {s.tab === 'LEVERAGE' && isCbb(s.league) && !leverageReady && (
+          <p className="animate-pulse py-16 text-center text-slate-400">Loading leverage…</p>
+        )}
+        {s.tab === 'LEVERAGE' && isCbb(s.league) && leverageReady && (
           <LeverageView
             league={config}
             teams={teams}
@@ -257,9 +274,14 @@ export default function App() {
             onSimulate={simulateGame}
           />
         )}
+        </Suspense>
       </main>
       <Footer meta={meta} />
-      {reportTeam && <TeamReportModal team={reportTeam} allTeams={teams} onClose={() => setReportTeam(null)} />}
+      {reportTeam && (
+        <Suspense fallback={null}>
+          <TeamReportModal team={reportTeam} allTeams={teams} onClose={() => setReportTeam(null)} />
+        </Suspense>
+      )}
     </div>
   );
 }

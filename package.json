@@ -11,7 +11,9 @@
     "data:build": "tsx scripts/buildRatings.ts",
     "data": "npm run data:fetch && npm run data:build",
     "data:prior": "node scripts/fetchData.mjs --prior",
-    "backtest": "tsx scripts/backtest.ts"
+    "backtest": "tsx scripts/backtest.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
@@ -29,6 +31,7 @@
     "tailwindcss": "3.4.16",
     "tsx": "^4.19.2",
     "typescript": "5.6.3",
-    "vite": "5.4.11"
+    "vite": "5.4.11",
+    "vitest": "^2.1.8"
   }
 }
