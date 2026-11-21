@@ -138,7 +138,7 @@ export function simulateTourney(teams: TourneyTeam[], games: TourneyGame[], o: T
     confMembers.get(t.conference)!.push(t.index);
   }
   // Conferences that earn an automatic bid: not independent, big enough to hold a tournament.
-  const autoConfs = [...confMembers.entries()].filter(([name, m]) => !/independ/i.test(name) && m.length >= 4);
+  const autoConfs = [...confMembers.entries()].filter(([name, m]) => !/indep/i.test(name) && m.length >= 4);
   const atLargeSlots = o.fieldSize - autoConfs.length;
 
   const wins = new Float64Array(n);

@@ -31,6 +31,9 @@ import {
 } from './lib/shared';
 
 const SEASON_ITERS = 10000;
+// FBS conferences that play a championship game between the top two teams by conference record (assumption: American
+// and Pac-12 crown the best conference record without a game).
+const TITLE_GAME_CONFERENCES = ['SEC', 'Big Ten', 'ACC', 'Big 12', 'MAC', 'Mountain West', 'Sun Belt', 'CUSA'];
 const TOURNEY_ITERS = 20000;
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
@@ -242,7 +245,27 @@ function build(s: LeagueSettings) {
     division: t.division ?? t.conference,
     wins: t.wins + 0.5 * (rec.get(rawIdOf.get(t.id) as string)?.t ?? 0),
     power: t.powerRating,
+    divWins: 0,
+    divLosses: 0,
+    confWins: 0,
+    confLosses: 0,
   }));
+  // Head-to-head and division/conference records so far, for tiebreakers.
+  const h2hWins = new Float64Array(teams.length * teams.length);
+  for (const r of raw.results) {
+    if (!inU.has(r[1]) || !inU.has(r[2]) || r[3] === r[4]) continue;
+    const w = tIndex.get(`${s.id.toLowerCase()}-${r[3] > r[4] ? r[1] : r[2]}`) as number;
+    const l = tIndex.get(`${s.id.toLowerCase()}-${r[3] > r[4] ? r[2] : r[1]}`) as number;
+    h2hWins[w * teams.length + l] += 1;
+    if (seasonInputs[w].division === seasonInputs[l].division) {
+      seasonInputs[w].divWins = (seasonInputs[w].divWins ?? 0) + 1;
+      seasonInputs[l].divLosses = (seasonInputs[l].divLosses ?? 0) + 1;
+    }
+    if (seasonInputs[w].conference === seasonInputs[l].conference) {
+      seasonInputs[w].confWins = (seasonInputs[w].confWins ?? 0) + 1;
+      seasonInputs[l].confLosses = (seasonInputs[l].confLosses ?? 0) + 1;
+    }
+  }
   const remainingCount = new Array<number>(teams.length).fill(0);
   for (const g of remaining) {
     remainingCount[g.home]++;
@@ -380,6 +403,9 @@ function build(s: LeagueSettings) {
       iterations: SEASON_ITERS,
       seed: 20261121,
       pairProb: (home, away) => prob(home, away, false),
+      neutralProb: (a, b) => prob(a, b, true),
+      h2hWins,
+      titleGameConferences: TITLE_GAME_CONFERENCES,
     });
     season = teams.map((t, k) => ({
       teamId: t.id,
@@ -391,6 +417,8 @@ function build(s: LeagueSettings) {
       divisionPct: round(odds[k].divisionPct),
       topSeedPct: round(odds[k].topSeedPct),
       topSixPct: round(odds[k].topSixPct),
+      playInPct: round(odds[k].playInPct),
+      confChampPct: round(odds[k].confChampPct),
       bowlPct: round(odds[k].bowlPct),
       cfpPct: round(odds[k].cfpPct),
     }));

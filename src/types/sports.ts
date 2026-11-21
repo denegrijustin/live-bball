@@ -124,6 +124,8 @@ export interface SeasonProjection {
   divisionPct: number;
   topSeedPct: number;
   topSixPct: number;
+  playInPct?: number; // NBA: finishes 7th-10th
+  confChampPct?: number; // NCAAF: wins its conference
   bowlPct: number;
   cfpPct: number;
   /** College basketball only: NCAA tournament field odds from the selection model (percent). */

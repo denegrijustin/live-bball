@@ -163,11 +163,11 @@ describe('simulateTourney', () => {
   it('independents and tiny conferences do not earn an automatic bid', () => {
     const extra: TourneyTeam[] = [
       ...teams,
-      ...Array.from({ length: 5 }, (_, k) => ({ index: teams.length + k, conference: 'Independents', wins: 3, confWins: 0, rating: 0, sigma: 2 })),
+      ...Array.from({ length: 5 }, (_, k) => ({ index: teams.length + k, conference: 'FBS Indep.', wins: 3, confWins: 0, rating: 0, sigma: 2 })),
       ...Array.from({ length: 3 }, (_, k) => ({ index: teams.length + 5 + k, conference: 'Tiny', wins: 3, confWins: 0, rating: 0, sigma: 2 })),
     ];
     const r = simulateTourney(extra, games, { ...opts, iterations: 200, neutralMargin: (i, j) => extra[i].rating - extra[j].rating });
-    expect(r.autoBidConferences).not.toContain('Independents');
+    expect(r.autoBidConferences).not.toContain('FBS Indep.');
     expect(r.autoBidConferences).not.toContain('Tiny');
     expect(r.atLargeSlots).toBe(16);
   });

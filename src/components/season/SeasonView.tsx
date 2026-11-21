@@ -30,6 +30,7 @@ function columnsFor(league: LeagueConfig['id']): Col[] {
     return [
       { key: 'playoffPct', label: 'Playoffs', title: 'Qualifies directly or through the play-in' },
       { key: 'topSixPct', label: 'Top 6', title: 'Finishes top six in the conference (no play-in)' },
+      { key: 'playInPct', label: 'Play-In', title: 'Finishes 7th-10th and plays the play-in tournament' },
       { key: 'topSeedPct', label: '#1 Seed', title: 'Earns the conference #1 seed' },
     ];
   if (isCbb(league))
@@ -39,7 +40,8 @@ function columnsFor(league: LeagueConfig['id']): Col[] {
       { key: 'atLargePct', label: 'At-Large', title: 'Selected at-large' },
     ];
   return [
-    { key: 'cfpPct', label: 'CFP Top 12', title: 'Ranks top 12 by simulated record, then rating (simplified)' },
+    { key: 'confChampPct', label: 'Conf Title', title: 'Wins its conference (championship game where one is played)' },
+    { key: 'cfpPct', label: 'CFP Field', title: 'Makes the 12-team playoff: five highest-ranked conference champions plus seven at-large' },
     { key: 'bowlPct', label: 'Bowl Eligible', title: 'Finishes with 6+ wins' },
   ];
 }
@@ -166,13 +168,13 @@ export default function SeasonView({ league, teams, season, iterations, onSelect
       <p className="text-[11px] leading-relaxed text-slate-600">
         Each remaining game is simulated from its analytic win probability (ratings, venue, home advantage).
         {league.id === 'NFL' &&
-          ' The bracket takes the four division winners plus three wild cards per conference; ties on wins are broken at random (no head-to-head or common-opponent tiebreakers).'}
+          ' The bracket takes the four division winners plus three wild cards per conference. Ties on wins are broken by head-to-head record, then division record (within a division), then conference record, then a coin flip; strength of victory and common-games tiebreakers are not modelled.'}
         {league.id === 'NBA' &&
-          ' Top six per conference qualify directly; seeds 7–10 play the 7v8 / 9v10 play-in. Ties on wins are broken at random.'}
+          ' Top six per conference qualify directly; seeds 7–10 play the play-in (7v8 winner is the 7 seed; the 9v10 loser is out; the 7v8 loser hosts the 9v10 winner for the 8 seed). Ties on wins are broken by division winner, head-to-head, then conference record.'}
         {cbb &&
           ' Each team’s simulated season runs through conference tournaments (top 8 by conference record, single elimination) for automatic bids, then at-large spots go to the best selection scores (rating plus wins above expectation, with committee noise). Click a team to see how each remaining game moves its bid.'}
         {league.id === 'NCAAF' &&
-          ' CFP odds are simplified: no conference championship games or committee judgement, just simulated record then rating. Only games between FBS teams are simulated.'}
+          ' Conference titles use conference record with a championship game between the top two in conferences that play one; the 12-team CFP takes the five highest-ranked champions plus seven at-large, ranked by wins then rating with committee noise. Only games between FBS teams are simulated.'}
       </p>
     </div>
   );
