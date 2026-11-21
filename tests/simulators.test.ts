@@ -48,7 +48,7 @@ describe('simulateSeason', () => {
     for (let i = 0; i < teams.length; i++)
       for (let j = i + 1; j < teams.length; j++) games.push({ home: i, away: j, homeWinProb: 1 });
     const odds = simulateSeason(teams, games, { league: 'NFL', iterations: 200, seed: 1 });
-    teams.forEach((t, i) => expect(odds[i].avgWins).toBe(teams.length - 1 - i));
+    teams.forEach((_t, i) => expect(odds[i].avgWins).toBe(teams.length - 1 - i));
     // Team 0 is best in the AFC; team 16 is best in the NFC.
     expect(odds[0].topSeedPct).toBe(100);
     expect(odds[0].divisionPct).toBe(100);
